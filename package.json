@@ -1,0 +1,21 @@
+{
+  "name": "michelsons-arcade",
+  "version": "0.2.0",
+  "description": "MICHELSON'S ARCADE — juego de tablero multijugador estilo fiesta: la TV muestra el tablero y cada celular es un control.",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js",
+    "build:artifact": "node scripts/build-artifact.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "esbuild": "^0.24.2"
+  },
+  "license": "UNLICENSED"
+}
