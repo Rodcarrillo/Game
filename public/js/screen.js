@@ -39,6 +39,8 @@ export class GameScreen {
       onAction: (kind) => {
         if (kind === 'card' && this.state) this.overlays.showCard(this.state);
         else if (kind === 'share') this.share();
+        else if (kind === 'shotok') onHostAction({ type: 'SHOT_OK', host: true });
+        else if (kind === 'roll') onHostAction({ type: 'LOCAL_ROLL' });
         else onHostAction({ type: kind === 'resume' ? 'RESUME' : kind === 'again' ? 'RESET' : kind });
       },
     });

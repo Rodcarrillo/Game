@@ -51,6 +51,11 @@ function boot(hotData = {}) {
     onHostAction: (a) => {
       if (!runner) return;
       if (a.type === 'RESET') return backToLobby();
+      if (a.type === 'LOCAL_ROLL') {
+        const st = runner.getState();
+        if (st.phase === 'DICE_ROLL') runner.dispatch({ type: 'ROLL', playerId: st.pending.playerId });
+        return;
+      }
       runner.dispatch(a);
     },
   });
@@ -213,6 +218,7 @@ function boot(hotData = {}) {
         return `<div class="pad" data-pid="${id}">${walletHtml(pub, id)}<div class="pad-body">${body}</div><small class="pad-keys">${keyLabel(state, id, mg.gameId)}</small></div>`;
       }).join('');
     }
+    if (state.phase === 'SHOT_CONFIRM') return '';
     if (state.phase === 'SHOT_GIFT' && state.pending && !state.players[state.pending.playerId].isBot) {
       const g = state.pending.playerId;
       return `<div class="pad solo" data-pid="${g}">${walletHtml(pub, g)}<div class="pad-body">${controlsHtml(pub, privateView(state, g), { local: true })}</div></div>`;
@@ -273,6 +279,11 @@ function boot(hotData = {}) {
         if (s.minigame.gameId === 'skill-issue' && key === k[0]) runner.dispatch({ type: 'MG_INPUT', playerId: id, payload: { action: 'stop' } });
         if (s.minigame.gameId === 'cap-or-fact' && (key === k[0] || key === k[1])) runner.dispatch({ type: 'MG_INPUT', playerId: id, payload: { answer: key === k[0] ? 'cap' : 'fact' } });
       }
+      return;
+    }
+    if ((key === ' ' || key === 'enter') && s.phase === 'SHOT_CONFIRM') {
+      e.preventDefault();
+      runner.dispatch({ type: 'SHOT_OK', host: true });
       return;
     }
     if (key === ' ' || key === 'enter') {

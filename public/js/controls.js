@@ -86,6 +86,20 @@ export function controlsHtml(state, you, { local = false } = {}) {
       }
       if (pend?.done === 'bought' && isMe) return `<div class="ph-wait mine"><b>¡+${pend.bought} Perrita${pend.bought > 1 ? 's' : ''}!</b></div>`;
       return `<div class="ph-wait"><b>${curName} está en la tienda</b></div>`;
+    case 'SHOT_CONFIRM': {
+      const word = (state.config.shotWord || 'shot').toUpperCase();
+      if (pend?.playerId === me) {
+        return `<div class="ph-wait mine">${shotSvg(90)}<b>¡TOMA ${word}${pend.n > 1 ? ` ×${pend.n}` : ''}!</b><p>${esc(pend.reason || '')}</p></div>
+          <button class="btn huge" data-action="${act({ type: 'SHOT_OK', token: pend.token })}">Continuar</button>`;
+      }
+      return `<div class="ph-wait"><b>${esc(state.players[pend?.playerId]?.name || '')} toma ${state.config.shotWord}</b><p>Esperando a que pulse Continuar…</p></div>`;
+    }
+    case 'PLACE':
+      if (pend?.kind === 'place' && pend.playerId === me) {
+        return `<p class="ph-title">${esc(pend.name)}</p><p class="ph-note">${esc(pend.what)}</p>
+          <div class="ph-two"><button class="btn big mint" data-action="${act({ type: 'PLACE_ENTER', enter: true })}">ENTRAR</button><button class="btn big ghost" data-action="${act({ type: 'PLACE_ENTER', enter: false })}">Seguir</button></div>`;
+      }
+      return `<div class="ph-wait"><b>${esc(state.players[pend?.playerId]?.name || '')} está en la entrada de ${esc(pend?.name || '')}</b></div>`;
     case 'ITEM_SHOP':
       if (isMe && pend?.kind === 'items' && !pend.done) {
         const full = p.items.length >= pend.maxItems;

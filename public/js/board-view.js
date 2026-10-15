@@ -104,7 +104,23 @@ function decorSvg(kind, region, r) {
 }
 
 // Lugares emblemáticos (arte original)
-function landmarks() {
+const PLACE_OFFSET = { escuela: [-195, -78], disco: [150, -24], safari: [205, 30] };
+const PLACE_DEFAULT = { escuela: [625, 340], disco: [150, 664], safari: [1093, 527] };
+
+function entrancePath(place, ent) {
+  if (!ent) return '';
+  const [dx, dy] = PLACE_OFFSET[place];
+  const bx = ent.x + dx * 0.55;
+  const by = ent.y + dy * 0.55;
+  return `<path d="M${ent.x} ${ent.y}L${bx} ${by}" stroke="#5f554a" stroke-width="34" stroke-linecap="round"/>
+    <path d="M${ent.x} ${ent.y}L${bx} ${by}" stroke="#c9b48e" stroke-width="24" stroke-linecap="round" stroke-dasharray="2 10"/>`;
+}
+
+function landmarks(ents = {}) {
+  const at = (place) => {
+    const e = ents[place] || { x: PLACE_DEFAULT[place][0], y: PLACE_DEFAULT[place][1] };
+    return `${e.x + PLACE_OFFSET[place][0]} ${e.y + PLACE_OFFSET[place][1]}`;
+  };
   const prison = `<g transform="translate(830 600)">
       <path d="M-215 40L0 -70 215 40 0 150z" fill="#7d858c" stroke="${INK}" stroke-width="4"/>
       <path d="M-200 40L0 -62 200 40 0 142z" fill="none" stroke="#c9ced3" stroke-width="2" stroke-dasharray="6 6"/>
@@ -134,21 +150,21 @@ function landmarks() {
       <path d="M-14 -56l14-12 14 12z" fill="#d9332b" stroke="${INK}" stroke-width="3"/>
       <path d="M12 -48l140-40v60z" fill="#fff6b0" opacity=".25" class="beam"/>
     </g>`;
-  const escuela = `<g transform="translate(430 262)">
+  const escuela = `${entrancePath('escuela', ents.escuela)}<g transform="translate(${at('escuela')})">
       <path d="M-120 34L0 -26 120 34 0 94z" fill="#c9b98a" stroke="${INK}" stroke-width="3"/>
       <g transform="translate(-10 20)">${iso(170, 70, 50, { top: '#b84a3a', left: '#f1e6cf', right: '#d8cbae' })}${windows(6, -76, -30, 12, 6, '#7fb2ff')}</g>
       <circle cx="-10" cy="-52" r="12" fill="#fff" stroke="${INK}" stroke-width="3"/><path d="M-10 -52v-7M-10 -52l5 3" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>
       <g transform="translate(-10 -78)"><rect x="-74" y="-16" width="148" height="28" rx="6" fill="#1f4fbf" stroke="${INK}" stroke-width="3"/><text y="5" text-anchor="middle" class="board-sign">ESCUELA PIAGET</text></g>
       <g transform="translate(100 10)"><path d="M0 30V-50" stroke="#8a8f96" stroke-width="4"/><path d="M0 -50h30v18H0z" fill="#2ecc8f" stroke="${INK}" stroke-width="2.5"/></g>
     </g>`;
-  const disco = `<g transform="translate(300 640)">
+  const disco = `${entrancePath('disco', ents.disco)}<g transform="translate(${at('disco')})">
       <path d="M-56 -30l-60-170M56 -30l70-160" stroke="url(#beam)" stroke-width="28" class="spot" opacity=".55"/>
       <g transform="translate(0 30)">${iso(150, 80, 52, { top: '#2a2438', left: '#3d3550', right: '#2f2942' })}</g>
       <g transform="translate(0 -40)"><rect x="-70" y="-20" width="140" height="34" rx="8" fill="#140f22" stroke="#ff4fd8" stroke-width="3"/><text y="7" text-anchor="middle" class="board-neon">LA PÉREZ</text></g>
       <g fill="#6ff0ff" class="blink"><circle cx="-40" cy="20" r="3"/><circle cx="-20" cy="30" r="3"/><circle cx="30" cy="22" r="3"/></g>
       <g transform="translate(-30 74)" fill="${INK}">${[0, 1, 2, 3].map((i) => `<ellipse cx="${i * 14}" cy="${i * 4}" rx="5" ry="9"/>`).join('')}</g>
     </g>`;
-  const safari = `<g transform="translate(1300 560)">
+  const safari = `${entrancePath('safari', ents.safari)}<g transform="translate(${at('safari')})">
       <ellipse rx="110" ry="74" fill="#c8b46a" stroke="${INK}" stroke-width="3"/>
       <ellipse rx="110" ry="74" fill="none" stroke="#7a5233" stroke-width="6" stroke-dasharray="3 10"/>
       <g transform="translate(-30 10)"><rect x="-26" y="-14" width="52" height="22" rx="5" fill="#d9a441" stroke="${INK}" stroke-width="2.5"/><rect x="-14" y="-26" width="26" height="14" rx="3" fill="#a9d4ff" stroke="${INK}" stroke-width="2.5"/><circle cx="-14" cy="10" r="7" fill="#333" stroke="${INK}" stroke-width="2"/><circle cx="14" cy="10" r="7" fill="#333" stroke="${INK}" stroke-width="2"/></g>
@@ -234,12 +250,15 @@ export class GameBoard {
     this.svg.appendChild(land);
 
     const marks = el('g', { class: 'layer-marks' });
-    marks.innerHTML = landmarks();
+    const ents = {};
+    for (const t of tiles) if (t.type === 'place') ents[t.place] = t;
+    marks.innerHTML = landmarks(ents);
+    const lm = (pl) => { const e = ents[pl] || { x: PLACE_DEFAULT[pl][0], y: PLACE_DEFAULT[pl][1] }; return [e.x + PLACE_OFFSET[pl][0], e.y + PLACE_OFFSET[pl][1]]; };
 
     // Decoraciones procedurales (deterministas)
     const decor = el('g', { class: 'layer-decor' });
     const rd = lcg(board.order.length * 97 + 13);
-    const avoid = [[830, 600, 240], [1025, 430, 60], [905, 300, 90], [70, 230, 60], [430, 262, 140], [300, 640, 110], [1300, 560, 130], [640, 980, 200]];
+    const avoid = [[830, 600, 240], [1025, 430, 60], [905, 300, 90], [70, 230, 60], [...lm('escuela'), 140], [...lm('disco'), 110], [...lm('safari'), 130], [640, 980, 200]];
     const placed = [];
     let html = '';
     const minX = Math.min(...H.map((p) => p[0])) - 90;
@@ -337,7 +356,7 @@ export class GameBoard {
 
   tileMarkup(t) {
     const st = TILE_STYLE[t.type] || TILE_STYLE.pemolar_plus;
-    const big = ['shop', 'start', 'itemshop', 'safari'].includes(t.type);
+    const big = ['shop', 'start', 'itemshop', 'safari', 'place'].includes(t.type);
     const rx = big ? 34 : 27;
     const ry = big ? 25 : 20;
     let extra = '';
@@ -356,6 +375,10 @@ export class GameBoard {
         <path d="M-24 -36l-3 14M-8 -36l-1 14M8 -36l1 14M24 -36l3 14" stroke="#fff" stroke-width="4"/>
         <rect x="-20" y="-14" width="12" height="12" rx="3" fill="#0d0f17" stroke="#7fb2ff" stroke-width="1.5"/><rect x="-4" y="-14" width="10" height="12" fill="#3d8bff"/><path d="M10 -14h10l-1 12h-8z" fill="#e8f4ff"/>
         <text y="-42" text-anchor="middle" class="board-mini">OBJETOS</text></g>`;
+    }
+    if (t.type === 'place') {
+      const nm = { escuela: 'ESCUELA', disco: 'LA PÉREZ', safari: 'SAFARI' }[t.place] || 'ENTRADA';
+      extra = `<g transform="translate(0 -44)"><rect x="-44" y="-14" width="88" height="24" rx="4" fill="#111827" stroke="#ff5a1f" stroke-width="2.5"/><text y="3" text-anchor="middle" class="board-mini">ENTRADA ${nm}</text></g>`;
     }
     if (t.type === 'start') {
       extra = `<g transform="translate(0 -40)"><path d="M-40 18v-28a40 26 0 0 1 80 0v28" fill="none" stroke="${INK}" stroke-width="11" stroke-linecap="round"/><path d="M-40 18v-28a40 26 0 0 1 80 0v28" fill="none" stroke="#ff5a1f" stroke-width="6" stroke-linecap="round"/><text y="-22" text-anchor="middle" class="board-label small">SALIDA</text></g>`;
@@ -400,7 +423,7 @@ export class GameBoard {
         tok.g.innerHTML = `<ellipse class="token-ring" rx="24" ry="9" cy="-2" fill="none" stroke="${p.color}" stroke-width="5"/>
           <g class="token-bob"><g class="token-marker"><path d="M-12 -14h24l-12 14z" fill="${p.color}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/></g>
           ${p.companion ? `<g transform="translate(14 -58) scale(.6)">${companionInner(p.companion)}</g>` : ''}
-          <image href="${CHAR_SRC[p.char] || CHAR_SRC.c1}" x="-44" y="-86" width="88" height="88" preserveAspectRatio="xMidYMax meet"/></g>
+          <g class="token-body"><image href="${CHAR_SRC[p.char] || CHAR_SRC.c1}" x="-44" y="-86" width="88" height="88" preserveAspectRatio="xMidYMax meet"/></g></g>
           <g class="token-steps"></g>`;
       }
     }
@@ -444,6 +467,14 @@ export class GameBoard {
       if (ev.type === 'shot') this.floatText(ev.playerId, `¡${(state.config.shotWord || 'shot').toUpperCase()}${ev.n > 1 ? ` ×${ev.n}` : ''}!`, 'shot');
     }
     this.firstState = false;
+  }
+
+  dust(x, y) {
+    if (this.reduced || !this.fxLayer) return;
+    const g = el('g', { transform: `translate(${x} ${y + 4})` });
+    g.innerHTML = '<g class="dust"><circle cx="-10" r="6" fill="#d8cdb6"/><circle cx="9" cy="2" r="5" fill="#d8cdb6"/><circle cy="-4" r="4" fill="#e8dfcc"/></g>';
+    this.fxLayer.appendChild(g);
+    setTimeout(() => g.remove(), 700);
   }
 
   floatText(playerId, text, kind) {
@@ -502,10 +533,14 @@ export class GameBoard {
             const [x0, y0] = this.tilePos(i === 0 ? a.from : a.path[i - 1]);
             const [x1, y1] = this.tilePos(a.path[i]);
             const f = (t - i * stepMs) / stepMs;
-            const e = ease(f);
+            const e = f; // caminata a paso constante
             x = x0 + (x1 - x0) * e;
             y = y0 + (y1 - y0) * e;
-            lift = Math.sin(Math.PI * f) * 34;
+            lift = Math.abs(Math.sin(Math.PI * 2 * f)) * 10;
+            // pasos: balanceo de lado a lado y voltea hacia donde camina
+            tok.rot = Math.sin(Math.PI * 2 * f) * 9;
+            if (Math.abs(x1 - x0) > 4) tok.face = x1 < x0 ? -1 : 1;
+            if (tok.lastStep !== i) { tok.lastStep = i; this.dust(x0, y0); }
           }
           tok.stepsDone = Math.max(0, Math.min(n, Math.floor(Math.max(0, t) / stepMs)));
         }
@@ -534,6 +569,12 @@ export class GameBoard {
     for (const [id, tok] of sorted) {
       const cur = id === s.currentPlayerId;
       tok.g.setAttribute('transform', `translate(${tok.x.toFixed(1)} ${(tok.y - tok.lift).toFixed(1)}) scale(${((cur ? 1.12 : 0.95) * tok.scale).toFixed(3)})`);
+      const body = tok.g.querySelector('.token-body');
+      if (body) {
+        const walking = tok.anim && !tok.anim.warp;
+        const rot = walking ? tok.rot || 0 : 0;
+        body.setAttribute('transform', `rotate(${rot.toFixed(1)} 0 -6) scale(${tok.face || 1} 1)`);
+      }
       this.tokenLayer.appendChild(tok.g);
       // contador de pasos restantes
       const stepsEl = tok.g.querySelector('.token-steps');
@@ -557,7 +598,9 @@ export class GameBoard {
     if (!s.currentPlayerId || overview.includes(s.phase)) return null;
     const tok = this.tokens.get(s.currentPlayerId);
     if (!tok) return null;
-    return { x: tok.x, y: tok.y - 40, w: s.phase === 'ROUTE_CHOICE' ? 1400 : 1180 };
+    // al tirar: acercamiento al personaje con el dado encima
+    const w = s.phase === 'DICE_ROLL' || s.phase === 'TURN_START' ? 560 : s.phase === 'ROUTE_CHOICE' ? 1300 : s.phase === 'MOVEMENT' ? 900 : 1100;
+    return { x: tok.x, y: tok.y - (s.phase === 'DICE_ROLL' ? 120 : 40), w, free: s.phase === 'DICE_ROLL' || s.phase === 'TURN_START' };
   }
 
   updateCamera() {
@@ -583,8 +626,9 @@ export class GameBoard {
       w = Math.min(f.w, bw);
       h = w / aspect;
       if (h > bh) { h = bh; w = h * aspect; }
-      cx = Math.max(w / 2 - 80, Math.min(this.board.width + 80 - w / 2, f.x));
-      cy = Math.max(h / 2 - 80, Math.min(this.board.height + 80 - h / 2, f.y));
+      const m = f.free ? 700 : 80; // al hacer zoom, el personaje siempre queda al centro
+      cx = Math.max(w / 2 - m, Math.min(this.board.width + m - w / 2, f.x));
+      cy = Math.max(h / 2 - m, Math.min(this.board.height + m - h / 2, f.y));
     }
     // expande a todo el lienzo manteniendo el centro dentro de la zona útil
     const kx = rect.width / uw;
@@ -596,7 +640,7 @@ export class GameBoard {
     w = fullW;
     h = fullH;
     const T = { x: cx - w / 2, y: cy - h / 2, w, h };
-    const k = this.reduced ? 1 : 0.07;
+    const k = this.reduced ? 1 : 0.05;
     const c = this.cam;
     if (!this.camInit) { Object.assign(c, T); this.camInit = true; }
     c.x += (T.x - c.x) * k;

@@ -24,18 +24,18 @@ import { MINIGAMES, eligibleMinigames } from './minigames/index.js';
 
 export const PHASES = [
   'LOBBY', 'BOARD_INTRO', 'TURN_START', 'DICE_ROLL', 'MOVEMENT', 'ROUTE_CHOICE', 'SHOP',
-  'TILE_RESOLUTION', 'ITEM_SHOP', 'SAFARI', 'EXAM', 'SHOT_GIFT', 'MINIGAME_INTRO', 'MINIGAME_PLAYING', 'MINIGAME_RESULTS',
+  'TILE_RESOLUTION', 'ITEM_SHOP', 'PLACE', 'SAFARI', 'EXAM', 'SHOT_GIFT', 'SHOT_CONFIRM', 'MINIGAME_INTRO', 'MINIGAME_PLAYING', 'MINIGAME_RESULTS',
   'BOARD_END', 'FINAL_BONUSES', 'FINAL_LEADERBOARD', 'WINNER_REVEAL',
 ];
 
 // Tiempos de presentación (ms). La TV usa los mismos valores para animar.
 export const TIMING = {
-  intro: 3500,
-  turnStart: 1600,
-  diceSpin: 1400,
-  step: 300,
-  afterMove: 450,
-  tileResult: 2800,
+  intro: 4000,
+  turnStart: 2200,
+  diceSpin: 1900,
+  step: 620,
+  afterMove: 700,
+  tileResult: 3600,
   shopDone: 1600,
   minigameIntro: 5500,
   minigameResults: 6000,
@@ -90,6 +90,8 @@ export function createGame({ config = {}, seed = Date.now(), now = Date.now() } 
     minigameSeq: 0,
     lastMinigameId: null,
     queue: [],
+    shotQueue: [],
+    shotHold: null,
     timer: null,
     timerSeq: 0,
     events: [],
@@ -314,12 +316,84 @@ function afterMovement(s, now) {
   const landType = s.board.tiles[p.tileId].type;
   if (landType === 'safari') return openSafari(s, now);
   if (landType === 'exam') return openExam(s, now);
+  if (landType === 'place') return openPlace(s, now);
   resolveLanding(s, now);
 }
 
 // ---------------------------------------------------------------------------
 // Safari, Examen y regalos de shots
 // ---------------------------------------------------------------------------
+
+const PLACE_INFO = {
+  safari: { name: 'Safari', what: 'Apuesta Pemolares contra la casa. Si ganas, te llevas una acompañante.' },
+  escuela: { name: 'Escuela Piaget', what: 'Examen sorpresa: acierta y gana Pemolares, falla y toma.' },
+  disco: { name: 'La Pérez', what: 'Barra libre: repartes 3 shots a quien quieras.' },
+};
+
+function openPlace(s, now) {
+  const p = s.players[s.move.playerId];
+  const tile = s.board.tiles[p.tileId];
+  const info = PLACE_INFO[tile.place] || PLACE_INFO.safari;
+  s.phase = 'PLACE';
+  s.lastTile = null;
+  s.pending = { kind: 'place', playerId: p.id, token: `z${s.seq}`, place: tile.place, name: info.name, what: info.what };
+  setDecisionTimer(s, Math.min(20000, s.config.turnTimeoutSec * 1000 || 20000), now);
+}
+
+function enterPlace(s, enter, now) {
+  const pend = s.pending;
+  const p = s.players[pend.playerId];
+  if (!enter) {
+    s.phase = 'TILE_RESOLUTION';
+    s.pending = null;
+    s.lastTile = { playerId: p.id, tileId: p.tileId, tileType: 'place', title: `No entró a ${pend.name}`, text: 'Sigue su camino.', tone: 'neutral' };
+    return setTimer(s, 1800, 'tile', now);
+  }
+  log(s, `${p.name} entró a ${pend.name}`);
+  if (pend.place === 'safari') return openSafari(s, now);
+  if (pend.place === 'escuela') return openExam(s, now);
+  // disco: barra libre
+  s.phase = 'TILE_RESOLUTION';
+  s.pending = null;
+  if (!s.config.shotsEnabled) {
+    changePemolares(s, p.id, 6, 'Barra libre en La Pérez');
+    s.lastTile = { playerId: p.id, tileId: p.tileId, tileType: 'place', title: 'Barra libre', text: '+6 Pemolares', tone: 'good' };
+    return setTimer(s, TIMING.tileResult, 'tile', now);
+  }
+  s.lastTile = { playerId: p.id, tileId: p.tileId, tileType: 'place', title: '¡Barra libre en La Pérez!', text: `${p.name} reparte 3 ${s.config.shotWord}s.`, tone: 'great' };
+  s.afterTile = { gift: 3, reason: 'Barra libre en La Pérez' };
+  return setTimer(s, TIMING.tileResult, 'tile', now);
+}
+
+// --- Pausa "X TOMA SHOT": cada shot espera a que alguien pulse Continuar ---
+function holdShots(s, now) {
+  if (!s.shotQueue?.length || s.phase === 'SHOT_CONFIRM' || s.paused) return;
+  s.shotHold = {
+    phase: s.phase,
+    pending: s.pending,
+    remaining: s.timer ? Math.max(0, s.timer.at - now) : null,
+    reason: s.timer?.reason || null,
+  };
+  openShotConfirm(s, now);
+}
+
+function openShotConfirm(s, now) {
+  const q = s.shotQueue[0];
+  s.phase = 'SHOT_CONFIRM';
+  s.pending = { kind: 'shotok', playerId: q.playerId, n: q.n, reason: q.reason, token: `k${s.seq}-${s.shotQueue.length}`, left: s.shotQueue.length };
+  setTimer(s, 45000, 'shot-auto', now);
+}
+
+function confirmShot(s, now) {
+  s.shotQueue.shift();
+  if (s.shotQueue.length) return openShotConfirm(s, now);
+  const h = s.shotHold;
+  s.shotHold = null;
+  s.phase = h.phase;
+  s.pending = h.pending;
+  if (h.remaining != null) setTimer(s, Math.max(400, h.remaining), h.reason, now);
+  else s.timer = null;
+}
 
 function openSafari(s, now) {
   const p = s.players[s.move.playerId];
@@ -698,7 +772,7 @@ function computeAwards(s) {
 // Dispatch
 // ---------------------------------------------------------------------------
 
-const HOST_ACTIONS = new Set(['ADD_PLAYER', 'REMOVE_PLAYER', 'UPDATE_CONFIG', 'START', 'PAUSE', 'RESUME', 'RESET']);
+const HOST_ACTIONS = new Set(['SHOT_OK', 'ADD_PLAYER', 'REMOVE_PLAYER', 'UPDATE_CONFIG', 'START', 'PAUSE', 'RESUME', 'RESET']);
 export const isHostAction = (type) => HOST_ACTIONS.has(type);
 
 export function dispatch(prev, action, ctx = {}) {
@@ -889,6 +963,19 @@ export function dispatch(prev, action, ctx = {}) {
       answerExam(s, action.answer, now);
       break;
     }
+    case 'SHOT_OK': {
+      if (s.phase !== 'SHOT_CONFIRM' || s.pending?.kind !== 'shotok') return fail('No hay shot pendiente');
+      if (!action.host && action.playerId !== s.pending.playerId) return fail('Le toca confirmar a quien toma');
+      if (action.token && action.token !== s.pending.token) return fail('Ya se confirmó');
+      confirmShot(s, now);
+      break;
+    }
+    case 'PLACE_ENTER': {
+      if (s.phase !== 'PLACE' || s.pending?.kind !== 'place') return fail('No estás en una entrada');
+      if (action.playerId !== s.pending.playerId) return fail('No es tu turno');
+      enterPlace(s, !!action.enter, now);
+      break;
+    }
     case 'GIFT_SHOT': {
       const pend = s.pending;
       if (s.phase !== 'SHOT_GIFT' || pend?.kind !== 'gift') return fail('No hay shots que repartir');
@@ -920,6 +1007,7 @@ export function dispatch(prev, action, ctx = {}) {
     default:
       return fail('Acción desconocida');
   }
+  holdShots(s, now);
   s.seq += 1;
   return { ok: true, state: s };
 }
@@ -943,6 +1031,10 @@ function onTick(s, reason, now) {
     case 'SHOP':
       if (!s.pending.done) s.pending.done = 'skipped';
       return finishShop(s, now);
+    case 'SHOT_CONFIRM':
+      return confirmShot(s, now);
+    case 'PLACE':
+      return enterPlace(s, false, now);
     case 'ITEM_SHOP':
       if (!s.pending.done) s.pending.done = 'done';
       return finishShop(s, now);
@@ -1009,7 +1101,7 @@ function onTick(s, reason, now) {
 // ---------------------------------------------------------------------------
 
 export function publicState(s) {
-  const { rngState, pausedTimer, secret, ...rest } = s;
+  const { rngState, pausedTimer, secret, shotHold, ...rest } = s;
   const out = clone(rest);
   if (s.minigame) {
     const game = MINIGAMES[s.minigame.gameId];
@@ -1058,6 +1150,9 @@ export function botActions(s, rand = Math.random) {
       const pick = buy ? affordable[Math.floor(rand() * affordable.length)] : null;
       out.push({ key: `${pend.token}:${pend.bought.length}`, delayMs: 1600, action: pick ? { type: 'ITEM_BUY', playerId: cur.id, item: pick.id } : { type: 'ITEM_DONE', playerId: cur.id } });
     }
+    if (s.phase === 'PLACE') {
+      out.push({ key: pend.token, delayMs: 1500, action: { type: 'PLACE_ENTER', playerId: cur.id, enter: rand() < 0.75 } });
+    }
     if (s.phase === 'SAFARI' && !pend.result) {
       out.push({ key: pend.token, delayMs: 1500, action: { type: 'SAFARI_BET', playerId: cur.id, bet: pend.bets[Math.floor(rand() * pend.bets.length)] } });
     }
@@ -1073,6 +1168,9 @@ export function botActions(s, rand = Math.random) {
       const qty = buy ? Math.max(1, pend.maxQty - (rand() < 0.3 ? 1 : 0)) : 0;
       out.push({ key: pend.token, delayMs: 1500, action: { type: buy ? 'SHOP_BUY' : 'SHOP_SKIP', playerId: cur.id, token: pend.token, qty } });
     }
+  }
+  if (s.phase === 'SHOT_CONFIRM' && pend && s.players[pend.playerId]?.isBot) {
+    out.push({ key: pend.token, delayMs: 2400, action: { type: 'SHOT_OK', playerId: pend.playerId, token: pend.token } });
   }
   if (s.phase === 'SHOT_GIFT' && pend && s.players[pend.playerId]?.isBot && pend.remaining > 0) {
     const to = pend.options[Math.floor(rand() * pend.options.length)];

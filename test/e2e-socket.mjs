@@ -55,6 +55,15 @@ async function play(p) {
     const r = await p.emit('player:action', { type: 'ROLL' });
     if (!r.ok) { rejectedOutOfTurn = true; log(`  ${p.name} intentó tirar fuera de turno → rechazado: ${r.error}`); }
   }
+  if (st.phase === 'SHOT_CONFIRM' && st.pending?.playerId === me) {
+    await sleep(300);
+    await p.emit('player:action', { type: 'SHOT_OK', token: st.pending.token });
+  }
+  if (st.phase === 'PLACE' && st.pending?.playerId === me) await p.emit('player:action', { type: 'PLACE_ENTER', enter: true });
+  if (st.phase === 'ITEM_SHOP' && st.pending?.playerId === me && !st.pending.done) await p.emit('player:action', { type: 'ITEM_DONE' });
+  if (st.phase === 'SAFARI' && st.pending?.playerId === me && !st.pending.result) await p.emit('player:action', { type: 'SAFARI_BET', bet: st.pending.bets[0] });
+  if (st.phase === 'EXAM' && st.pending?.playerId === me && !st.pending.result) await p.emit('player:action', { type: 'EXAM_ANSWER', answer: 'cap' });
+  if (st.phase === 'SHOT_GIFT' && st.pending?.playerId === me && st.pending.remaining > 0) await p.emit('player:action', { type: 'GIFT_SHOT', to: st.pending.options[0] });
   if (st.currentPlayerId === me && st.pending?.playerId === me) {
     if (st.phase === 'DICE_ROLL') await p.emit('player:action', { type: 'ROLL' });
     if (st.phase === 'ROUTE_CHOICE') await p.emit('player:action', { type: 'CHOOSE_ROUTE', to: st.pending.options[1].to });
@@ -100,7 +109,7 @@ while (tv.state.phase !== 'WINNER_REVEAL') {
     await sleep(300);
     log(`  Beto se reconectó: connected=${tv.state.players[beto.id].connected}, casilla=${tv.state.players[beto.id].tileId}`);
   }
-  if (Date.now() - t0 > 380000) throw new Error('tiempo agotado en ' + tv.state.phase);
+  if (Date.now() - t0 > 560000) throw new Error('tiempo agotado en ' + tv.state.phase);
 }
 const st = tv.state;
 log('GANADOR:', st.final.winners.map((id) => st.players[id].name).join(' y '));

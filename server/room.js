@@ -10,7 +10,7 @@ import {
   PLAYER_COLORS, HATS, MAX_PLAYERS,
 } from '../src/engine/index.js';
 
-const PLAYER_ACTIONS = new Set(['ROLL', 'CHOOSE_ROUTE', 'SHOP_BUY', 'SHOP_SKIP', 'MG_INPUT', 'UPDATE_PLAYER', 'USE_ITEM', 'ITEM_BUY', 'ITEM_DONE', 'SAFARI_BET', 'EXAM_ANSWER', 'GIFT_SHOT']);
+const PLAYER_ACTIONS = new Set(['SHOT_OK', 'PLACE_ENTER', 'ROLL', 'CHOOSE_ROUTE', 'SHOP_BUY', 'SHOP_SKIP', 'MG_INPUT', 'UPDATE_PLAYER', 'USE_ITEM', 'ITEM_BUY', 'ITEM_DONE', 'SAFARI_BET', 'EXAM_ANSWER', 'GIFT_SHOT']);
 const BOT_NAMES = ['Gomi', 'Chicloso', 'Mazapán', 'Tamarindo', 'Pulparindo', 'Gansito', 'Bubulubu', 'Duvalín'];
 const ROOM_TTL_MS = 8 * 60 * 60 * 1000;
 
@@ -199,6 +199,7 @@ export class Room {
       this.runner.replaceState(st);
       return { ok: true };
     }
+    if (action?.type === 'SHOT_OK') return this.runner.dispatch({ type: 'SHOT_OK', host: true });
     if (!isHostAction(action?.type)) return { ok: false, error: 'Acción no permitida' };
     if (action.type === 'REMOVE_PLAYER') {
       for (const [t, id] of Object.entries(this.playerTokens)) if (id === action.playerId) delete this.playerTokens[t];

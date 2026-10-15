@@ -179,7 +179,7 @@ test('pausa y reanudación', () => {
   assert.equal(s.timer, null);
   assert.equal(dispatch(s, { type: 'ROLL', playerId: 'p0' }, { now: 1 }).ok, false);
   s = dispatch(s, { type: 'RESUME' }, { now: 5000 }).state;
-  assert.ok(s.timer && s.timer.at === 5000 + 2500);
+  assert.ok(s.timer && s.timer.at === 5000 + 3000);
 });
 
 test('ranking: Perritas mandan, Pemolares desempatan sólo si está activo', () => {
@@ -277,5 +277,27 @@ test('examen: la respuesta no se ve en el estado público', () => {
   assert.ok(!JSON.stringify(pub).includes('examAnswer'));
   const r = dispatch(s, { type: 'EXAM_ANSWER', playerId: 'p0', answer: 'cap' }, { now: 1 });
   assert.ok(r.ok);
-  assert.equal(typeof r.state.pending.result.ok, 'boolean');
+  const pend = r.state.phase === 'SHOT_CONFIRM' ? r.state.shotHold.pending : r.state.pending;
+  assert.equal(typeof pend.result.ok, 'boolean');
+});
+
+test('cada shot pausa el juego hasta que se pulsa Continuar', async () => {
+  const { giveShot } = await import('../src/engine/wallet.js');
+  let s = dispatch(lobby(2), { type: 'START' }, { now: 0 }).state;
+  s.players.p1.isBot = false;
+  giveShot(s, 'p1', 1, 'prueba');
+  const r = dispatch(s, { type: 'SET_CONNECTED', playerId: 'p0', connected: true }, { now: 10 });
+  s = r.state;
+  assert.equal(s.phase, 'SHOT_CONFIRM');
+  assert.equal(s.pending.playerId, 'p1');
+  assert.equal(dispatch(s, { type: 'SHOT_OK', playerId: 'p0' }, { now: 11 }).ok, false, 'otro jugador no confirma');
+  s = dispatch(s, { type: 'SHOT_OK', playerId: 'p1' }, { now: 12 }).state;
+  assert.equal(s.phase, 'BOARD_INTRO');
+  assert.ok(s.timer);
+});
+
+test('entradas: Escuela, La Pérez y Safari tienen casilla de entrada', () => {
+  const b = buildBoard({});
+  const places = Object.values(b.tiles).filter((t) => t.type === 'place').map((t) => t.place).sort();
+  assert.deepEqual(places, ['disco', 'escuela', 'safari']);
 });

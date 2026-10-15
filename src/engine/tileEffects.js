@@ -119,6 +119,8 @@ registerTileType('itemshop', {
 registerTileType('safari', { label: 'Safari', description: 'Apuesta Pemolares; si ganas, te llevas una acompañante.', resolve: () => null });
 registerTileType('exam', { label: 'Examen', description: 'Una pregunta de CAP OR FACT para ti solo.', resolve: () => null });
 
+registerTileType('place', { label: 'Entrada', description: 'Puedes entrar al lugar.', resolve: () => null });
+
 registerTileType('ronda', {
   label: 'Ronda',
   description: 'Todos toman.',

@@ -593,3 +593,26 @@ h3.lose { color: var(--red); }
 .lobby-inner > p.muted, .home-inner .muted { color: #c9d4ff; }
 .home-inner p.subtitle { max-width: 640px; }
 .settings fieldset.wide { grid-column: 1 / -1; }
+
+.dust { transform-box: fill-box; transform-origin: center; animation: dust .7s ease-out forwards; }
+@keyframes dust { from { opacity: .9; transform: scale(.5); } to { opacity: 0; transform: scale(1.6) translateY(-6px); } }
+
+/* dado sobre el personaje */
+.ov-dice.zoom { top: 13%; gap: 22px; }
+.ov-dice.zoom .die-wrap { transform: scale(1.2); margin: 14px; }
+.ov-dice.zoom .tap-hint { margin-top: 8px; }
+.ov-dice .die-tap { pointer-events: auto; cursor: pointer; background: none; border: 0; padding: 0; animation: tapme 1.2s ease-in-out infinite; }
+.ov-dice .die-tap:focus-visible { outline: 4px solid #ffb400; outline-offset: 10px; border-radius: 20px; }
+@keyframes tapme { 50% { transform: scale(1.06); } }
+.tap-hint { font-family: var(--display); font-size: 22px; color: #fff; -webkit-text-stroke: 2px var(--ink); paint-order: stroke fill; }
+
+/* X TOMA SHOT */
+.ov-shot { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(circle, rgba(17,24,39,.55), rgba(17,24,39,.85)); pointer-events: auto; z-index: 30; }
+.shot-card { display: grid; justify-items: center; gap: 8px; padding: 26px 40px; background: #111827; color: #fff; border: 6px solid #ffb400; border-radius: 30px; box-shadow: 0 10px 0 #000; text-align: center; animation: popIn .45s cubic-bezier(.3,1.6,.5,1); max-width: 640px; }
+.shot-card .who { display: flex; align-items: flex-end; gap: 10px; }
+.shot-card .ico-shot { animation: tilt .7s ease-in-out infinite; }
+.shot-card h2 { font-size: clamp(44px, 6vw, 76px); line-height: 1; color: #ffb400; }
+.shot-card h2 small { display: block; font-size: .45em; color: #fff; }
+.shot-card p { margin: 0; font-weight: 600; color: #c9d2e8; font-size: 20px; }
+.shot-card .btn { font-size: 28px; padding: 12px 40px; }
+.place-card .what { font-weight: 600; margin: 4px 0; }

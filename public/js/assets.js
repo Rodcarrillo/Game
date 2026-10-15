@@ -164,6 +164,7 @@ export const TILE_STYLE = {
   exam: { top: '#ffffff', side: '#9aa7c7', label: 'Examen' },
   ronda: { top: '#ff7a1a', side: '#b44f05', label: 'Ronda' },
   barra: { top: '#5b2a86', side: '#391657', label: 'Barra libre' },
+  place: { top: '#ff5a1f', side: '#a8380c', label: 'Entrada' },
 };
 
 /** Ícono dentro de una casilla, centrado en (0,0), ~28px. */
@@ -191,6 +192,8 @@ export function tileGlyph(type) {
       return `<text y="7" text-anchor="middle" font-family="Titan One, sans-serif" font-size="19" fill="#2f6fe0">A+</text>`;
     case 'ronda':
       return `<path d="M-7 -9h14l-2 18h-10z" fill="#fff" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/><path d="M-6 -3h12l-1.4 11h-9.2z" fill="#ffb400"/>`;
+    case 'place':
+      return `<path d="M-8 9v-14a8 8 0 0 1 16 0v14z" fill="#3a2416" stroke="#fff" stroke-width="2.5"/><circle cx="4" cy="2" r="1.6" fill="#ffd84a"/>`;
     case 'barra':
       return `<path d="M-3 -12h6v5c4 2 5 5 5 8v10h-16v-10c0-3 1-6 5-8z" fill="#2ecc8f" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><rect x="-6" y="0" width="12" height="5" fill="#fff"/>`;
     case 'start':

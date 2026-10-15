@@ -89,6 +89,7 @@ export function giveShot(s, playerId, n, reason, rng, { bounce = true } = {}) {
   }
   if (applied) {
     pushEvent(s, { type: 'shot', playerId, n: applied, reason });
+    (s.shotQueue ||= []).push({ playerId, n: applied, reason });
     log(s, `${p.name}: ${applied} ${s.config.shotWord}${applied > 1 ? 's' : ''} (${reason})`);
   }
   return applied;

@@ -94,7 +94,7 @@ export class Overlays {
     for (const ev of state.events) {
       if (ev.id <= this.seenShots) continue;
       this.seenShots = ev.id;
-      if (!['shot', 'shot-saved', 'shot-pass', 'companion'].includes(ev.type)) continue;
+      if (!['shot-saved', 'shot-pass', 'companion'].includes(ev.type)) continue;
       const p = state.players[ev.playerId];
       if (!p) continue;
       let html;
@@ -141,8 +141,9 @@ export class Overlays {
         const n = dm?.item === 'double' ? 2 : dm?.item === 'triple' ? 3 : 1;
         const label = dm ? { double: 'Dado doble', triple: 'Dado triple', choice: `Dado a elección: ${dm.value}`, slow: 'Dado lento (1–3)' }[dm.item] : `${s.config.diceMin}–${s.config.diceMax}`;
         const dice = Array.from({ length: n }, (_, i) => dieBlock('idle', ((i * 2) % 6) + 1, 6, i)).join('');
-        return `<div class="ov-dice"><div class="dice-row">${dice}</div>
-          <div class="dice-hint"><b>${name(s, id)}</b>, tira el dado · ${label}<small>${hint}</small></div>${this.countdown(s)}</div>`;
+        const tappable = this.local && !p.isBot;
+        return `<div class="ov-dice zoom">${tappable ? `<button class="die-tap" data-ov="roll" aria-label="Tirar el dado"><div class="dice-row">${dice}</div></button><div class="tap-hint">¡Toca el dado!</div>` : `<div class="dice-row">${dice}</div>`}
+          <div class="dice-hint"><b>${name(s, id)}</b>, tira el dado · ${label}<small>${tappable ? 'O pulsa la barra espaciadora' : hint}</small></div>${this.countdown(s)}</div>`;
       }
       case 'MOVEMENT': {
         if (!s.anim || !s.anim.delay || !s.lastRoll) return '';
@@ -170,6 +171,21 @@ export class Overlays {
             <p class="muted">${pend.canBuy ? `Puede comprar hasta ${pend.maxQty}` : 'No le alcanza. ¡Junta más Pemolares!'}${pend.passing ? ' · va de paso' : ''}</p>${this.countdown(s)}`;
         }
         return `<div class="ov-low"><div class="card shop-card"><div class="shop-awning"></div><h3>Tienda de Perritas</h3>${body}</div></div>`;
+      }
+      case 'SHOT_CONFIRM': {
+        const pend = s.pending;
+        const word = (s.config.shotWord || 'shot').toUpperCase();
+        const p = s.players[pend.playerId];
+        const canPress = this.isHost || this.local;
+        return `<div class="ov-shot"><div class="shot-card"><div class="who">${avatar(s, pend.playerId, 120)}${shotSvg(110)}</div>
+          <h2>${name(s, pend.playerId)} TOMA ${word}${pend.n > 1 ? ` ×${pend.n}` : ''}<small>${esc(pend.reason || '')}</small></h2>
+          ${canPress ? `<button class="btn" data-ov="shotok">Continuar</button>` : ''}
+          <p>${p?.isBot ? 'El bot se lo toma…' : this.local ? 'Pulsa Continuar (o la barra espaciadora) cuando se lo tome' : `${name(s, pend.playerId)} pulsa Continuar en su celular`}</p></div></div>`;
+      }
+      case 'PLACE': {
+        const pend = s.pending;
+        return `<div class="ov-low"><div class="card place-card"><span class="tile-kind" style="--tc:#ff5a1f">Entrada</span><h3>${esc(pend.name)}</h3>
+          <p class="what">${esc(pend.what)}</p><p class="muted">${name(s, pend.playerId)} decide si entra</p>${this.countdown(s)}</div></div>`;
       }
       case 'ITEM_SHOP': {
         const pend = s.pending;

@@ -24,6 +24,7 @@ const TYPE_BY_CHAR = {
   E: 'exam',
   R: 'ronda',
   B: 'barra',
+  Z: 'place',
 };
 
 export const REGIONS = {
@@ -53,7 +54,7 @@ const SEGMENTS = [
     id: 'R2', region: 'safari', label: 'Safari', risk: 'Arriesgada · corta · apuesta y Perrita',
     branch: true,
     pts: [[1110, 700], [1090, 545], [1150, 410], [1235, 310]],
-    pattern: '-CF-PM',
+    pattern: '-CZ-PM',
     next: ['T'],
   },
   {
@@ -72,13 +73,13 @@ const SEGMENTS = [
     id: 'U2', region: 'escuela', label: 'Escuela Piaget', risk: 'Exámenes · Perrita',
     branch: true,
     pts: [[625, 340], [570, 455], [440, 490], [305, 410]],
-    pattern: 'E+PE-+',
+    pattern: 'Z+PE-+',
     next: ['L'],
   },
   {
     id: 'L', region: 'disco', label: 'La Pérez',
     pts: [[165, 320], [135, 480], [145, 640], [185, 775]],
-    pattern: 'R+$BM',
+    pattern: 'R+$ZM',
     next: ['A'],
   },
 ];
@@ -168,6 +169,7 @@ export function buildBoard({ boardLength = 'normal', boardBranches = true } = {}
         region: s.region,
         segment: s.id,
         next: [],
+        ...(ch === 'Z' ? { place: s.region } : {}),
       };
       order.push(id);
       if (i > 0) tiles[`${s.id}${i}`].next.push(id);
