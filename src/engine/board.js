@@ -25,6 +25,7 @@ const TYPE_BY_CHAR = {
   R: 'ronda',
   B: 'barra',
   Z: 'place',
+  V: 'abdo',
 };
 
 export const REGIONS = {
@@ -41,7 +42,7 @@ const SEGMENTS = [
   {
     id: 'A', region: 'muelle',
     pts: [[250, 860], [560, 905], [880, 890], [1150, 830]],
-    pattern: 'S+M+I-C+M?',
+    pattern: 'S+M+I-CVM?',
     next: ['R1', 'R2'],
   },
   {

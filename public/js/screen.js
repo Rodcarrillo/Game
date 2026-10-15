@@ -41,6 +41,7 @@ export class GameScreen {
         else if (kind === 'share') this.share();
         else if (kind === 'shotok') onHostAction({ type: 'SHOT_OK', host: true });
         else if (kind === 'roll') onHostAction({ type: 'LOCAL_ROLL' });
+        else if (kind === 'ch-yes' || kind === 'ch-no') onHostAction({ type: 'CHALLENGE_RESULT', host: true, done: kind === 'ch-yes' });
         else onHostAction({ type: kind === 'resume' ? 'RESUME' : kind === 'again' ? 'RESET' : kind });
       },
     });
@@ -76,7 +77,7 @@ export class GameScreen {
     this.overlays.render(state);
     const playing = state.phase !== 'LOBBY';
     this.roundChip.hidden = !playing || !state.round;
-    if (playing) this.roundChip.innerHTML = `Ronda <b>${Math.min(state.round, state.config.totalRounds)}</b>/${state.config.totalRounds}`;
+    if (playing) this.roundChip.innerHTML = state.vegasTrip?.active ? '<b>LAS VEGAS</b> · turno exprés' : `Ronda <b>${Math.min(state.round, state.config.totalRounds)}</b>/${state.config.totalRounds}`;
     let hb = '';
     if (this.isHost && playing && state.phase !== 'WINNER_REVEAL') {
       hb = state.paused

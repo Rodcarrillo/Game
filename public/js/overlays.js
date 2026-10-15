@@ -2,7 +2,7 @@
 // (PerritaShop), resultado de casilla, minijuegos (MiniGameBridge en pantalla)
 // y resultados finales (FinalResults) con tarjeta para compartir.
 
-import { avatarHtml, perritaSvg, pemolarSvg, shotSvg, dieFaceSvg, companionSvg, itemIconSvg, TILE_STYLE, esc } from './assets.js';
+import { CHAR_SRC, avatarHtml, perritaSvg, pemolarSvg, shotSvg, dieFaceSvg, companionSvg, itemIconSvg, TILE_STYLE, esc } from './assets.js';
 import { MG_VIEWS, tickLiveClocks } from './minigame-views.js';
 import { DOG_PATH } from './assets.js';
 import { rankPlayers } from './hud.js';
@@ -25,6 +25,24 @@ function dieFaces(value, max) {
     others.push(v === value ? ((v % max) + 1) : v);
   }
   return `<div class="die-face f1">${dieFaceSvg(value)}</div>${others.map((v, i) => `<div class="die-face f${i + 2}">${dieFaceSvg(v)}</div>`).join('')}`;
+}
+
+/** Avión con los personajes asomados por las ventanas. */
+function planeSvg(s, ids) {
+  const n = Math.max(ids.length, 4);
+  const len = 120 + n * 70;
+  const wins = ids.map((id, i) => {
+    const p = s.players[id];
+    return `<g transform="translate(${110 + i * 70} 52)"><rect x="-26" y="-34" width="52" height="56" rx="14" fill="#bfe3ff" stroke="#1b2440" stroke-width="3"/><image href="${CHAR_SRC[p?.char] || CHAR_SRC.c1}" x="-24" y="-32" width="48" height="52" preserveAspectRatio="xMidYMin slice"/></g>`;
+  }).join('');
+  return `<svg viewBox="-40 -60 ${len + 120} 200" width="${len + 120}" height="200" aria-hidden="true">
+    <path d="M${len * 0.45} 70l-60 80h50l90-80z" fill="#c9ced3" stroke="#1b2440" stroke-width="4"/>
+    <path d="M0 40c0-30 30-40 60-40h${len - 40}c50 0 90 30 100 60-10 20-40 30-100 30H60C20 90 0 70 0 40z" fill="#fff" stroke="#1b2440" stroke-width="5"/>
+    <path d="M10 14l-30-60h40l40 46z" fill="#ff4fd8" stroke="#1b2440" stroke-width="4"/>
+    <path d="M20 70h${len}" stroke="#ff4fd8" stroke-width="8"/>
+    <text x="${len * 0.5}" y="86" text-anchor="middle" class="plane-text">ABDO AIRLINES</text>
+    ${wins}
+  </svg>`;
 }
 
 /** Dado negro con anillos de luz. */
@@ -131,7 +149,8 @@ export class Overlays {
       case 'TURN_START': {
         const id = s.currentPlayerId;
         const last = s.round === s.config.totalRounds;
-        return `<div class="ov-turn" style="--pc:${s.players[id].color}"><div class="turn-ribbon">${avatar(s, id, 70)}<div><small>Ronda ${s.round} de ${s.config.totalRounds}${last ? ' · ¡última!' : ''}</small><b>Turno de ${name(s, id)}</b></div></div></div>`;
+        const vegas = s.vegasTrip?.active;
+        return `<div class="ov-turn" style="--pc:${s.players[id].color}"><div class="turn-ribbon">${avatar(s, id, 70)}<div><small>${vegas ? `Las Vegas · turno exprés ${s.vegasTrip.idx + 1} de ${s.vegasTrip.order.length}` : `Ronda ${s.round} de ${s.config.totalRounds}${last ? ' · ¡última!' : ''}`}</small><b>Turno de ${name(s, id)}</b></div></div></div>`;
       }
       case 'DICE_ROLL': {
         const id = s.currentPlayerId;
@@ -171,6 +190,31 @@ export class Overlays {
             <p class="muted">${pend.canBuy ? `Puede comprar hasta ${pend.maxQty}` : 'No le alcanza. ¡Junta más Pemolares!'}${pend.passing ? ' · va de paso' : ''}</p>${this.countdown(s)}`;
         }
         return `<div class="ov-low"><div class="card shop-card"><div class="shop-awning"></div><h3>Tienda de Perritas</h3>${body}</div></div>`;
+      }
+      case 'ABDO_INTRO': {
+        const t = s.vegasTrip;
+        const lander = t?.lander || s.currentPlayerId;
+        const others = s.order.filter((id) => id !== lander);
+        return `<div class="ov-full abdo"><div class="abdo-scene">
+          <div class="abdo-title"><small>¡Cayó en!</small><b>BACHELOR OF ABDO</b></div>
+          <div class="abdo-call"><div class="abdo-lander">${avatar(s, lander, 120)}<span class="phone-ring"><svg width="44" height="44" viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="1" width="12" height="22" rx="3" fill="#111827" stroke="#fff" stroke-width="1.5"/><rect x="8" y="4" width="8" height="13" fill="#6ff0ff"/></svg></span><span class="ring-text">¡Ring ring! ¡Nos vamos a Las Vegas!</span></div>
+            <div class="abdo-crew">${others.map((id, i) => `<div class="crew" style="--i:${i}">${avatar(s, id, 80)}</div>`).join('')}</div></div>
+          <div class="plane-wrap"><div class="plane">${planeSvg(s, [lander, ...others])}</div></div>
+        </div></div>`;
+      }
+      case 'VEGAS_RETURN':
+        return `<div class="ov-full abdo back"><div class="abdo-scene"><div class="abdo-title"><small>Lo que pasa en Vegas se queda en Vegas</small><b>DE REGRESO A ISLA PEMOL</b></div>
+          <div class="plane-wrap"><div class="plane">${planeSvg(s, s.order)}</div></div></div></div>`;
+      case 'CHALLENGE': {
+        const pend = s.pending;
+        const prize = pend.reward === 'perritas' ? `${perritaSvg(30)} +${pend.amount} Perrita${pend.amount > 1 ? 's' : ''}` : `${pemolarSvg(26)} +${pend.amount} Pemolares`;
+        const canJudge = this.isHost || this.local;
+        return `<div class="ov-center"><div class="card challenge-card"><span class="tile-kind" style="--tc:#ff4fd8">Reto en Las Vegas</span>
+          <div class="ch-who">${avatar(s, pend.playerId, 80)}<h3>${name(s, pend.playerId)}</h3></div>
+          <p class="ch-text">${esc(pend.text)}</p><p class="ch-prize">Premio si lo cumple: ${prize}</p>
+          ${pend.result ? `<h3 class="${pend.result === 'done' ? 'win' : 'lose'}">${pend.result === 'done' ? '¡Cumplió!' : 'No cumplió'}</h3>`
+            : canJudge ? `<div class="ch-btns"><button class="btn mint" data-ov="ch-yes">Cumplió</button><button class="btn alt" data-ov="ch-no">No cumplió</button></div><p class="muted">El host decide</p>` : '<p class="muted">El host decide si lo cumplió</p>'}
+        </div></div>`;
       }
       case 'SHOT_CONFIRM': {
         const pend = s.pending;

@@ -16,6 +16,12 @@ export function settingsHtml(c, meta) {
       <p class="muted" style="margin:0">Ponle nombre a cada personaje. Los jugadores lo verán al elegir.</p>
       <div class="chars-grid">${Array.from({ length: 10 }, (_, i) => `<label class="char-name-field" for="cfg-char-${i}"><img src="${CHAR_SRC[`c${i + 1}`]}" alt=""><input id="cfg-char-${i}" name="char-${i}" maxlength="16" placeholder="Personaje ${i + 1}" value="${esc(c.characterNames?.[i] || '')}"></label>`).join('')}</div>
     </fieldset>
+    <fieldset class="wide"><legend>Retos de Las Vegas (Bachelor of Abdo)</legend>
+      <label class="field" for="cfg-challenges" style="display:grid;gap:4px"><span>Un reto por línea <small>vacío = retos de ejemplo</small></span>
+      <textarea id="cfg-challenges" name="challenges" rows="5" style="width:100%;border:3px solid var(--ink);border-radius:10px;padding:6px;font:inherit" placeholder="Baila 20 segundos&#10;Cuenta un chisme">${esc((c.challenges || []).join('\n'))}</textarea></label>
+      ${num('challengePemolares', 'Premio reto de Pemolares', c.challengePemolares, 0, 100)}
+      ${num('challengePerritas', 'Premio reto de Perritas', c.challengePerritas, 0, 5)}
+    </fieldset>
     <fieldset><legend>Modo shots</legend>
       ${chk('shotsEnabled', 'Jugar con shots (+18)', c.shotsEnabled)}
       ${sel('shotWord', 'Se toma', c.shotWord, [['shot', 'Shot'], ['trago', 'Trago']])}
@@ -90,6 +96,9 @@ export function readSettings(form, meta) {
       chaosMagnet: f.get('eb-chaosMagnet') === 'on',
     },
     pemolaresTiebreak: f.get('pemolaresTiebreak') === 'on',
+    challenges: String(f.get('challenges') || '').split('\n').map((x) => x.trim()).filter(Boolean),
+    challengePemolares: n('challengePemolares'),
+    challengePerritas: n('challengePerritas'),
     characterNames: Array.from({ length: 10 }, (_, i) => String(f.get(`char-${i}`) || '').trim()),
     shotsEnabled: f.get('shotsEnabled') === 'on',
     shotWord: f.get('shotWord'),

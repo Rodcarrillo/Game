@@ -3,6 +3,7 @@
 // servidor. No contiene reglas.
 
 import { TILE_STYLE, tileGlyph, esc, CHAR_SRC, companionInner, DOG_PATH } from './assets.js';
+import { CHAR_RIG } from './rig.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const INK = '#1b2440';
@@ -181,6 +182,29 @@ function landmarks(ents = {}) {
   return prison + water + terminal + lighthouse + escuela + disco + safari + dock;
 }
 
+/** Personaje recortado en torso y dos piernas para animar la caminata. */
+function riggedChar(p, pid) {
+  const r = CHAR_RIG[p.char] || { a: 0.6, hip: 0.6, split: 0.5 };
+  const H = 88;
+  const W = H * r.a;
+  const x0 = -W / 2;
+  const y0 = -86;
+  const hy = y0 + r.hip * H;
+  const sx = x0 + r.split * W;
+  const k = `tk${String(pid).replace(/[^a-z0-9]/gi, '')}`;
+  const img = `<image href="${CHAR_SRC[p.char] || CHAR_SRC.c1}" x="${x0.toFixed(1)}" y="${y0}" width="${W.toFixed(1)}" height="${H}"/>`;
+  const lp = (sx - W * 0.14).toFixed(1);
+  const rp = (sx + W * 0.14).toFixed(1);
+  return `<defs>
+      <clipPath id="${k}t"><rect x="${x0 - 30}" y="${y0 - 30}" width="${W + 60}" height="${(hy - y0 + 32).toFixed(1)}"/></clipPath>
+      <clipPath id="${k}l"><rect x="${x0 - 40}" y="${(hy - 1).toFixed(1)}" width="${(sx - x0 + 40).toFixed(1)}" height="${H}"/></clipPath>
+      <clipPath id="${k}r"><rect x="${sx.toFixed(1)}" y="${(hy - 1).toFixed(1)}" width="${W + 40}" height="${H}"/></clipPath>
+    </defs>
+    <g class="leg-l" data-pivot="${lp} ${hy.toFixed(1)}"><g clip-path="url(#${k}l)">${img}</g></g>
+    <g class="leg-r" data-pivot="${rp} ${hy.toFixed(1)}"><g clip-path="url(#${k}r)">${img}</g></g>
+    <g class="torso"><g clip-path="url(#${k}t)">${img}</g></g>`;
+}
+
 function el(tag, attrs = {}, html) {
   const e = document.createElementNS(NS, tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
@@ -210,6 +234,7 @@ export class GameBoard {
   // ---- construcción estática ------------------------------------------------
 
   build(board) {
+    if (board.theme === 'vegas') return this.buildVegas(board);
     this.svg.innerHTML = `<defs>
       <radialGradient id="sun" cx="0.12" cy="0.05" r="0.7"><stop offset="0" stop-color="#fff8d8" stop-opacity=".95"/><stop offset=".25" stop-color="#bfe3ff" stop-opacity=".35"/><stop offset="1" stop-color="#0b2a4a" stop-opacity="0"/></radialGradient>
       <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b6a8f"/><stop offset="1" stop-color="#0b2f4f"/></linearGradient>
@@ -354,9 +379,73 @@ export class GameBoard {
     this.tokens.clear();
   }
 
+  buildVegas(board) {
+    this.board = board;
+    const tiles = Object.values(board.tiles);
+    this.svg.innerHTML = `<defs>
+      <linearGradient id="vsky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#07061f"/><stop offset=".6" stop-color="#2a0b4a"/><stop offset="1" stop-color="#5a1a4a"/></linearGradient>
+      <radialGradient id="vglow" cx=".5" cy=".55" r=".6"><stop offset="0" stop-color="#ff4fd8" stop-opacity=".25"/><stop offset="1" stop-color="#ff4fd8" stop-opacity="0"/></radialGradient>
+    </defs>`;
+    const rnd = lcg(42);
+    let stars = '';
+    for (let i = 0; i < 120; i++) stars += `<circle cx="${(-800 + rnd() * 3200).toFixed(0)}" cy="${(-600 + rnd() * 1100).toFixed(0)}" r="${(1 + rnd() * 2).toFixed(1)}" fill="#fff" opacity="${(0.3 + rnd() * 0.6).toFixed(2)}" class="${rnd() < 0.3 ? 'blink' : ''}"/>`;
+    const neon = ['#ff4fd8', '#6ff0ff', '#ffb400', '#7dff6a', '#ff5a1f'];
+    let city = '';
+    for (let i = 0; i < 22; i++) {
+      const x = -300 + i * 105 + rnd() * 30;
+      const h = 160 + rnd() * 260;
+      const c = neon[i % neon.length];
+      city += `<g transform="translate(${x.toFixed(0)} 200)"><rect x="0" y="${-h}" width="80" height="${h}" fill="#151032" stroke="${c}" stroke-width="3"/>
+        ${Array.from({ length: Math.floor(h / 40) }, (_, k) => `<rect x="12" y="${-h + 16 + k * 36}" width="56" height="8" fill="${c}" opacity=".35"/>`).join('')}
+        <rect x="-6" y="${-h - 10}" width="92" height="12" fill="${c}" class="${i % 3 ? '' : 'blink'}"/></g>`;
+    }
+    const scene = el('g', { class: 'layer-bg' });
+    scene.innerHTML = `<rect x="-900" y="-700" width="3400" height="2400" fill="url(#vsky)"/>${stars}${city}
+      <rect x="-900" y="200" width="3400" height="1400" fill="#3a2a2a"/>
+      <ellipse cx="800" cy="520" rx="720" ry="420" fill="#c9a26a" stroke="#1b2440" stroke-width="5"/>
+      <ellipse cx="800" cy="520" rx="690" ry="395" fill="#2b2b36"/>
+      <ellipse cx="800" cy="520" rx="760" ry="460" fill="url(#vglow)"/>
+      <g transform="translate(800 470)">
+        <path d="M0 -150L150 0 0 150-150 0z" fill="#fff" stroke="#ff4fd8" stroke-width="8"/>
+        <path d="M0 -130L130 0 0 130-130 0z" fill="none" stroke="#ffb400" stroke-width="4" stroke-dasharray="4 10" class="blink"/>
+        <text y="-40" text-anchor="middle" class="vegas-small">BIENVENIDOS A LA FABULOSA</text>
+        <text y="22" text-anchor="middle" class="vegas-big">LAS VEGAS</text>
+        <text y="64" text-anchor="middle" class="vegas-small">· BACHELOR OF ABDO ·</text>
+        <path d="M-10 150v80M10 150v80" stroke="#c9ced3" stroke-width="10"/>
+      </g>
+      <g transform="translate(330 470)"><circle r="110" fill="none" stroke="#6ff0ff" stroke-width="6" class="spin-slow"/><circle r="10" fill="#6ff0ff"/>${Array.from({ length: 12 }, (_, k) => `<path d="M0 0L${(Math.cos(k * 0.5236) * 110).toFixed(0)} ${(Math.sin(k * 0.5236) * 110).toFixed(0)}" stroke="#6ff0ff" stroke-width="2" opacity=".6"/>`).join('')}<path d="M-30 150L0 0 30 150" fill="none" stroke="#9aa3ad" stroke-width="8"/></g>
+      <g transform="translate(1270 470)"><path d="M0 -170L-60 140M0 -170L60 140M-40 40h80M-24 -40h48" fill="none" stroke="#ffb400" stroke-width="7"/><circle cy="-176" r="10" fill="#ff4fd8" class="blink"/></g>`;
+    this.svg.appendChild(scene);
+    const road = el('g', { class: 'layer-road' });
+    let edges = '';
+    for (const [a, b] of board.edges) {
+      const A = board.tiles[a];
+      const B = board.tiles[b];
+      edges += `<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
+    }
+    road.innerHTML = `<g stroke="#ff4fd8" stroke-width="46" stroke-linecap="round" opacity=".5">${edges}</g><g stroke="#1a1a24" stroke-width="34" stroke-linecap="round">${edges}</g><g stroke="#ffb400" stroke-width="3" stroke-dasharray="14 12">${edges}</g>`;
+    this.svg.appendChild(road);
+    const tl = el('g', { class: 'layer-tiles' });
+    this.tileEls = {};
+    for (const t of tiles) {
+      const g = el('g', { class: `tile tile-${t.type}`, transform: `translate(${t.x} ${t.y})` });
+      g.innerHTML = this.tileMarkup(t);
+      tl.appendChild(g);
+      this.tileEls[t.id] = g;
+    }
+    this.svg.appendChild(tl);
+    this.fxLayer = el('g', { class: 'layer-fx' });
+    this.tokenLayer = el('g', { class: 'layer-tokens' });
+    this.uiLayer = el('g', { class: 'layer-ui' });
+    this.svg.appendChild(this.fxLayer);
+    this.svg.appendChild(this.tokenLayer);
+    this.svg.appendChild(this.uiLayer);
+    this.tokens.clear();
+  }
+
   tileMarkup(t) {
     const st = TILE_STYLE[t.type] || TILE_STYLE.pemolar_plus;
-    const big = ['shop', 'start', 'itemshop', 'safari', 'place'].includes(t.type);
+    const big = ['shop', 'start', 'itemshop', 'safari', 'place', 'abdo', 'vstart'].includes(t.type);
     const rx = big ? 34 : 27;
     const ry = big ? 25 : 20;
     let extra = '';
@@ -375,6 +464,11 @@ export class GameBoard {
         <path d="M-24 -36l-3 14M-8 -36l-1 14M8 -36l1 14M24 -36l3 14" stroke="#fff" stroke-width="4"/>
         <rect x="-20" y="-14" width="12" height="12" rx="3" fill="#0d0f17" stroke="#7fb2ff" stroke-width="1.5"/><rect x="-4" y="-14" width="10" height="12" fill="#3d8bff"/><path d="M10 -14h10l-1 12h-8z" fill="#e8f4ff"/>
         <text y="-42" text-anchor="middle" class="board-mini">OBJETOS</text></g>`;
+    }
+    if (t.type === 'abdo') {
+      extra = `<g transform="translate(0 -46)"><rect x="-58" y="-20" width="116" height="32" rx="6" fill="#111827" stroke="#ff4fd8" stroke-width="3"/>
+        <text y="-4" text-anchor="middle" class="board-mini" fill="#ff8ae6">BACHELOR</text><text y="8" text-anchor="middle" class="board-mini">OF ABDO</text>
+        <g transform="translate(0 -36) scale(.9)"><path d="M-22 0h44l8-6-6 10h-50z" fill="#fff" stroke="#1b2440" stroke-width="2"/><path d="M-6 0l-10-12h8l14 12z" fill="#fff" stroke="#1b2440" stroke-width="2"/></g></g>`;
     }
     if (t.type === 'place') {
       const nm = { escuela: 'ESCUELA', disco: 'LA PÉREZ', safari: 'SAFARI' }[t.place] || 'ENTRADA';
@@ -423,7 +517,7 @@ export class GameBoard {
         tok.g.innerHTML = `<ellipse class="token-ring" rx="24" ry="9" cy="-2" fill="none" stroke="${p.color}" stroke-width="5"/>
           <g class="token-bob"><g class="token-marker"><path d="M-12 -14h24l-12 14z" fill="${p.color}" stroke="${INK}" stroke-width="3" stroke-linejoin="round"/></g>
           ${p.companion ? `<g transform="translate(14 -58) scale(.6)">${companionInner(p.companion)}</g>` : ''}
-          <g class="token-body"><image href="${CHAR_SRC[p.char] || CHAR_SRC.c1}" x="-44" y="-86" width="88" height="88" preserveAspectRatio="xMidYMax meet"/></g></g>
+          <g class="token-body">${riggedChar(p, id)}</g></g>
           <g class="token-steps"></g>`;
       }
     }
@@ -571,9 +665,18 @@ export class GameBoard {
       tok.g.setAttribute('transform', `translate(${tok.x.toFixed(1)} ${(tok.y - tok.lift).toFixed(1)}) scale(${((cur ? 1.12 : 0.95) * tok.scale).toFixed(3)})`);
       const body = tok.g.querySelector('.token-body');
       if (body) {
-        const walking = tok.anim && !tok.anim.warp;
-        const rot = walking ? tok.rot || 0 : 0;
+        const walking = tok.anim && !tok.anim.warp && now - tok.anim.start > tok.anim.delay;
+        const rot = walking ? (tok.rot || 0) * 0.45 : 0;
         body.setAttribute('transform', `rotate(${rot.toFixed(1)} 0 -6) scale(${tok.face || 1} 1)`);
+        // piernas: se columpian en sentidos opuestos; el torso rebota
+        const ph = walking ? ((now - tok.anim.start - tok.anim.delay) / tok.anim.stepMs) * Math.PI * 2 : 0;
+        const swing = walking ? Math.sin(ph) * 22 : 0;
+        const legL = body.querySelector('.leg-l');
+        const legR = body.querySelector('.leg-r');
+        const torso = body.querySelector('.torso');
+        if (legL) legL.setAttribute('transform', `rotate(${swing.toFixed(1)} ${legL.dataset.pivot})`);
+        if (legR) legR.setAttribute('transform', `rotate(${(-swing).toFixed(1)} ${legR.dataset.pivot})`);
+        if (torso) torso.setAttribute('transform', `translate(0 ${walking ? (-Math.abs(Math.sin(ph)) * 3).toFixed(1) : 0})`);
       }
       this.tokenLayer.appendChild(tok.g);
       // contador de pasos restantes

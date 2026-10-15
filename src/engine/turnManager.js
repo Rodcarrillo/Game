@@ -20,11 +20,12 @@ import { resolveTile } from './tileEffects.js';
 import { changePemolares, changePerritas, pushEvent, log, giveShot } from './wallet.js';
 import { ITEMS, itemCatalog } from './items.js';
 import { STATEMENTS } from './minigames/capOrFact.js';
+import { buildVegasBoard, DEFAULT_CHALLENGES } from './vegas.js';
 import { MINIGAMES, eligibleMinigames } from './minigames/index.js';
 
 export const PHASES = [
   'LOBBY', 'BOARD_INTRO', 'TURN_START', 'DICE_ROLL', 'MOVEMENT', 'ROUTE_CHOICE', 'SHOP',
-  'TILE_RESOLUTION', 'ITEM_SHOP', 'PLACE', 'SAFARI', 'EXAM', 'SHOT_GIFT', 'SHOT_CONFIRM', 'MINIGAME_INTRO', 'MINIGAME_PLAYING', 'MINIGAME_RESULTS',
+  'TILE_RESOLUTION', 'ITEM_SHOP', 'PLACE', 'SAFARI', 'EXAM', 'SHOT_GIFT', 'SHOT_CONFIRM', 'ABDO_INTRO', 'VEGAS_RETURN', 'CHALLENGE', 'MINIGAME_INTRO', 'MINIGAME_PLAYING', 'MINIGAME_RESULTS',
   'BOARD_END', 'FINAL_BONUSES', 'FINAL_LEADERBOARD', 'WINNER_REVEAL',
 ];
 
@@ -49,6 +50,8 @@ export const TIMING = {
   examResult: 3000,
   giftTimeout: 15000,
   giftDone: 1500,
+  abdoIntro: 8500,
+  vegasReturn: 6000,
   warp: 1400,
 };
 export const CHARACTERS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10'];
@@ -317,12 +320,85 @@ function afterMovement(s, now) {
   if (landType === 'safari') return openSafari(s, now);
   if (landType === 'exam') return openExam(s, now);
   if (landType === 'place') return openPlace(s, now);
+  if (landType === 'abdo') return startAbdo(s, now);
+  if (landType === 'vpem' || landType === 'vper') return openChallenge(s, landType === 'vper' ? 'perritas' : 'pemolares', now);
   resolveLanding(s, now);
 }
 
 // ---------------------------------------------------------------------------
 // Safari, Examen y regalos de shots
 // ---------------------------------------------------------------------------
+
+// --- Bachelor of Abdo → Las Vegas (turno exprés) ---
+function startAbdo(s, now) {
+  const lander = s.move.playerId;
+  const start = s.order.indexOf(lander);
+  s.phase = 'ABDO_INTRO';
+  s.pending = null;
+  s.lastTile = { playerId: lander, tileId: s.players[lander].tileId, tileType: 'abdo', title: '¡Bachelor of Abdo!', text: 'Nos vamos a Las Vegas', tone: 'great' };
+  s.vegasTrip = {
+    active: false,
+    lander,
+    mainBoard: s.board,
+    positions: Object.fromEntries(s.order.map((id) => [id, s.players[id].tileId])),
+    returnTurnIndex: s.turnIndex,
+    order: s.order.slice(start).concat(s.order.slice(0, start)),
+    idx: 0,
+  };
+  log(s, `${s.players[lander].name} cayó en Bachelor of Abdo: ¡todos a Las Vegas!`);
+  setTimer(s, TIMING.abdoIntro, 'abdo', now);
+}
+
+function arriveVegas(s, now) {
+  const trip = s.vegasTrip;
+  s.board = buildVegasBoard();
+  for (const id of s.order) s.players[id].tileId = s.board.startId;
+  trip.active = true;
+  trip.idx = 0;
+  s.turnIndex = s.order.indexOf(trip.order[0]);
+  beginTurn(s, now);
+}
+
+function leaveVegas(s, now) {
+  const trip = s.vegasTrip;
+  s.board = trip.mainBoard;
+  for (const id of s.order) s.players[id].tileId = trip.positions[id];
+  s.turnIndex = trip.returnTurnIndex;
+  s.vegasTrip = null;
+  s.move = null;
+  s.anim = null;
+  log(s, 'De regreso en Isla Pemol');
+  afterTurn(s, now);
+}
+
+function openChallenge(s, reward, now) {
+  const p = s.players[s.move.playerId];
+  const list = s.config.challenges?.length ? s.config.challenges : DEFAULT_CHALLENGES;
+  const text = rngOf(s).pick(list);
+  s.phase = 'CHALLENGE';
+  s.lastTile = null;
+  s.pending = {
+    kind: 'challenge',
+    playerId: p.id,
+    token: `x${s.seq}`,
+    text,
+    reward,
+    amount: reward === 'perritas' ? s.config.challengePerritas : s.config.challengePemolares,
+    result: null,
+  };
+  setTimer(s, 90000, 'timeout', now);
+}
+
+function judgeChallenge(s, done, now) {
+  const pend = s.pending;
+  pend.result = done ? 'done' : 'failed';
+  if (done) {
+    if (pend.reward === 'perritas') changePerritas(s, pend.playerId, pend.amount, 'Reto cumplido en Las Vegas');
+    else changePemolares(s, pend.playerId, pend.amount, 'Reto cumplido en Las Vegas');
+  }
+  log(s, `${s.players[pend.playerId].name} ${done ? 'cumplió' : 'no cumplió'} el reto`);
+  setTimer(s, 2600, 'challenge-done', now);
+}
 
 const PLACE_INFO = {
   safari: { name: 'Safari', what: 'Apuesta Pemolares contra la casa. Si ganas, te llevas una acompañante.' },
@@ -583,6 +659,17 @@ function finishShop(s, now) {
 }
 
 function afterTurn(s, now) {
+  const trip = s.vegasTrip;
+  if (trip?.active) {
+    trip.idx += 1;
+    if (trip.idx < trip.order.length) {
+      s.turnIndex = s.order.indexOf(trip.order[trip.idx]);
+      return beginTurn(s, now);
+    }
+    s.phase = 'VEGAS_RETURN';
+    s.pending = null;
+    return setTimer(s, TIMING.vegasReturn, 'vegas-return', now);
+  }
   if (s.queue.length) return startMinigame(s, s.queue.shift(), now);
   if (!s.roundClosing) {
     s.turnIndex += 1;
@@ -772,7 +859,7 @@ function computeAwards(s) {
 // Dispatch
 // ---------------------------------------------------------------------------
 
-const HOST_ACTIONS = new Set(['SHOT_OK', 'ADD_PLAYER', 'REMOVE_PLAYER', 'UPDATE_CONFIG', 'START', 'PAUSE', 'RESUME', 'RESET']);
+const HOST_ACTIONS = new Set(['CHALLENGE_RESULT', 'SHOT_OK', 'ADD_PLAYER', 'REMOVE_PLAYER', 'UPDATE_CONFIG', 'START', 'PAUSE', 'RESUME', 'RESET']);
 export const isHostAction = (type) => HOST_ACTIONS.has(type);
 
 export function dispatch(prev, action, ctx = {}) {
@@ -970,6 +1057,13 @@ export function dispatch(prev, action, ctx = {}) {
       confirmShot(s, now);
       break;
     }
+    case 'CHALLENGE_RESULT': {
+      if (s.phase !== 'CHALLENGE' || s.pending?.kind !== 'challenge') return fail('No hay reto');
+      if (!action.host) return fail('Sólo el host decide');
+      if (s.pending.result) return fail('Ya se decidió');
+      judgeChallenge(s, !!action.done, now);
+      break;
+    }
     case 'PLACE_ENTER': {
       if (s.phase !== 'PLACE' || s.pending?.kind !== 'place') return fail('No estás en una entrada');
       if (action.playerId !== s.pending.playerId) return fail('No es tu turno');
@@ -1033,6 +1127,13 @@ function onTick(s, reason, now) {
       return finishShop(s, now);
     case 'SHOT_CONFIRM':
       return confirmShot(s, now);
+    case 'ABDO_INTRO':
+      return arriveVegas(s, now);
+    case 'VEGAS_RETURN':
+      return leaveVegas(s, now);
+    case 'CHALLENGE':
+      if (!s.pending.result) return judgeChallenge(s, false, now);
+      return afterTurn(s, now);
     case 'PLACE':
       return enterPlace(s, false, now);
     case 'ITEM_SHOP':
@@ -1101,8 +1202,9 @@ function onTick(s, reason, now) {
 // ---------------------------------------------------------------------------
 
 export function publicState(s) {
-  const { rngState, pausedTimer, secret, shotHold, ...rest } = s;
+  const { rngState, pausedTimer, secret, shotHold, vegasTrip, ...rest } = s;
   const out = clone(rest);
+  out.vegasTrip = vegasTrip ? { active: vegasTrip.active, lander: vegasTrip.lander, order: vegasTrip.order, idx: vegasTrip.idx } : null;
   if (s.minigame) {
     const game = MINIGAMES[s.minigame.gameId];
     out.minigame.data = undefined;
@@ -1185,4 +1287,88 @@ export function botActions(s, rand = Math.random) {
     }
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Modo prueba: salta directo a una situación para probarla sin jugar
+// ---------------------------------------------------------------------------
+
+export const LAB_SCENARIOS = [
+  ['dice', 'Dado con zoom y caminar'],
+  ['itemshop', 'Tienda de objetos'],
+  ['shop', 'Tienda de Perritas'],
+  ['escuela', 'Entrada Escuela Piaget'],
+  ['disco', 'Entrada La Pérez'],
+  ['safari', 'Entrada Safari'],
+  ['abdo', 'Bachelor of Abdo → Las Vegas'],
+  ['challenge', 'Reto de Las Vegas'],
+  ['shot', 'X toma shot'],
+  ['gift', 'Repartir shots'],
+  ['chaos', 'Casilla de caos'],
+  ['cap-or-fact', 'Minijuego CAP OR FACT'],
+  ['skill-issue', 'Minijuego SKILL ISSUE'],
+  ['final', 'Final y ganador'],
+];
+
+export function labScenario(prev, name, { now = Date.now(), playerId } = {}) {
+  const s = clone(prev);
+  if (s.phase === 'LOBBY') startGame(s, now);
+  if (s.vegasTrip) {
+    s.board = s.vegasTrip.mainBoard;
+    for (const id of s.order) s.players[id].tileId = s.vegasTrip.positions[id];
+    s.vegasTrip = null;
+  }
+  const pid = playerId || s.order.find((id) => !s.players[id].isBot) || s.order[0];
+  const p = s.players[pid];
+  Object.assign(s, { paused: false, pending: null, minigame: null, queue: [], shotQueue: [], shotHold: null, afterTile: null, lastTile: null, anim: null, final: null, roundClosing: false });
+  s.turnIndex = s.order.indexOf(pid);
+  p.pemolares = Math.max(p.pemolares, 60);
+  const land = (pred) => {
+    const id = s.board.order.find((t) => pred(s.board.tiles[t]));
+    p.tileId = id;
+    const ty = s.board.tiles[id].type;
+    s.move = { playerId: pid, stepsLeft: 0, total: 1, forced: null, stop: ty === 'shop' || ty === 'itemshop' ? ty : 'land' };
+    s.phase = 'MOVEMENT';
+    setTimer(s, 400, 'move', now);
+  };
+  switch (name) {
+    case 'dice': openRoll(s, now); break;
+    case 'itemshop': land((t) => t.type === 'itemshop'); break;
+    case 'shop': land((t) => t.type === 'shop'); break;
+    case 'escuela': case 'disco': case 'safari': land((t) => t.type === 'place' && t.place === name); break;
+    case 'abdo': land((t) => t.type === 'abdo'); break;
+    case 'chaos': land((t) => t.type === 'chaos'); break;
+    case 'challenge':
+      s.move = { playerId: pid, stepsLeft: 0, total: 1, stop: 'land' };
+      openChallenge(s, 'perritas', now);
+      break;
+    case 'shot':
+      s.move = { playerId: pid, stepsLeft: 0, total: 1, stop: 'land' };
+      s.phase = 'TILE_RESOLUTION';
+      s.lastTile = { playerId: pid, tileId: p.tileId, tileType: 'pemolar_minus', title: 'Prueba de shot', text: '', tone: 'bad' };
+      setTimer(s, TIMING.tileResult, 'tile', now);
+      giveShot(s, pid, 2, 'Modo prueba', rngOf(s));
+      holdShots(s, now);
+      break;
+    case 'gift':
+      s.move = { playerId: pid, stepsLeft: 0, total: 1, stop: 'land' };
+      startGift(s, pid, 3, 'Modo prueba', 'turn', now);
+      break;
+    case 'cap-or-fact':
+    case 'skill-issue': {
+      const keep = s.config.enabledMinigames;
+      s.config.enabledMinigames = [name];
+      startMinigame(s, { source: 'tile', participants: s.order.slice() }, now);
+      s.config.enabledMinigames = keep;
+      break;
+    }
+    case 'final':
+      s.order.forEach((id, i) => { s.players[id].perritas = (s.order.length - i) % 3; s.players[id].stats.minigameWins = i % 2; });
+      endBoard(s, now);
+      break;
+    default:
+      openRoll(s, now);
+  }
+  s.seq += 1;
+  return s;
 }

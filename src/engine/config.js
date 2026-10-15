@@ -48,6 +48,11 @@ export const DEFAULT_CONFIG = {
   shotWord: 'shot', // shot | trago
   shotLimit: 0, // 0 = sin límite
 
+  // Retos de Las Vegas (los escribe el host) y sus premios
+  challenges: [],
+  challengePemolares: 10,
+  challengePerritas: 1,
+
   // Nombres que el host da a los 10 personajes ('' = "Personaje N")
   characterNames: ['', '', '', '', '', '', '', '', '', ''],
 };
@@ -113,6 +118,9 @@ export function normalizeConfig(input = {}, knownMinigames = []) {
   out.shotsEnabled = c.shotsEnabled !== false && c.shotsEnabled !== 'false';
   out.shotWord = oneOf(c.shotWord, ['shot', 'trago'], d.shotWord);
   out.shotLimit = clampInt(c.shotLimit, 0, 99, d.shotLimit);
+  out.challenges = (Array.isArray(c.challenges) ? c.challenges : []).map((x) => String(x).trim().slice(0, 120)).filter(Boolean).slice(0, 30);
+  out.challengePemolares = clampInt(c.challengePemolares, 0, 100, d.challengePemolares);
+  out.challengePerritas = clampInt(c.challengePerritas, 0, 5, d.challengePerritas);
   const names = Array.isArray(c.characterNames) ? c.characterNames : d.characterNames;
   out.characterNames = Array.from({ length: 10 }, (_, i) => String(names[i] ?? '').trim().slice(0, 16));
   return out;

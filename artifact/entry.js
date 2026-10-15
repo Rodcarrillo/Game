@@ -3,7 +3,7 @@
 // minijuegos usan botones en pantalla o teclas.
 
 import {
-  createGame, createRunner, publicState, privateView, listMinigames, DEFAULT_CONFIG, PLAYER_COLORS, CHARACTERS, characterName,
+  createGame, createRunner, publicState, privateView, listMinigames, DEFAULT_CONFIG, PLAYER_COLORS, CHARACTERS, characterName, labScenario, LAB_SCENARIOS,
 } from '../src/engine/index.js';
 import { GameScreen } from '../public/js/screen.js';
 import { controlsHtml, walletHtml } from '../public/js/controls.js';
@@ -47,10 +47,11 @@ function boot(hotData = {}) {
   const screen = new GameScreen(app.querySelector('#screen'), {
     isHost: true,
     local: true,
-    extraTop: '<button class="btn small ghost" data-exit>Salir</button>',
+    extraTop: '<button class="btn small ghost" data-exit>Salir</button> <button class="btn small blue" data-lab>Modo prueba</button>',
     onHostAction: (a) => {
       if (!runner) return;
       if (a.type === 'RESET') return backToLobby();
+      if (a.type === 'CHALLENGE_RESULT') { runner.dispatch({ type: 'CHALLENGE_RESULT', host: true, done: a.done }); return; }
       if (a.type === 'LOCAL_ROLL') {
         const st = runner.getState();
         if (st.phase === 'DICE_ROLL') runner.dispatch({ type: 'ROLL', playerId: st.pending.playerId });
@@ -93,9 +94,31 @@ function boot(hotData = {}) {
         </div>
         <p class="muted" style="text-align:center">${config.totalRounds} rondas · dado ${config.diceMin}–${config.diceMax} · Perrita a ${config.perritaPrice} Pemolares</p>
       </section>
+      <section class="panel lab-panel">
+        <h2>Modo prueba <small class="muted">salta directo a cualquier parte del juego, sin jugar una partida</small></h2>
+        ${labButtonsHtml()}
+      </section>
       ${howToHtml(config.perritaPrice)}
       <p class="muted" style="text-align:center">Para jugar con un celular por persona, usa la versión con servidor del repositorio.</p>
     </div>`;
+  }
+
+  function labButtonsHtml() {
+    return `<div class="lab-grid">${LAB_SCENARIOS.map(([id, label]) => `<button type="button" class="btn small ghost" data-scn="${id}">${esc(label)}</button>`).join('')}</div>`;
+  }
+
+  function runScenario(name) {
+    let base = runner?.getState();
+    if (!base || base.phase === 'WINNER_REVEAL') {
+      base = createGame({ config, seed: `${Date.now()}-${Math.random()}` });
+      const tmp = createRunner({ state: base });
+      roster.forEach((p, i) => tmp.dispatch({ type: 'ADD_PLAYER', player: { id: `p${i + 1}`, name: p.name.trim(), color: p.color, char: p.char, isBot: i === 0 ? false : p.isBot } }));
+      base = tmp.getState();
+      tmp.stop();
+    }
+    modal.hidden = true;
+    modal.innerHTML = '';
+    attach(labScenario(base, name, { now: Date.now() }));
   }
 
   function humanKeys(i) {
@@ -145,6 +168,7 @@ function boot(hotData = {}) {
     if (l === 'settings') return openSettings();
     if (l === 'start') return start();
     if (l === 'resume') return resume(store.get().state);
+    if (t.dataset.scn) return runScenario(t.dataset.scn);
     return undefined;
   });
 
@@ -249,6 +273,17 @@ function boot(hotData = {}) {
       dock.innerHTML = html;
     }
   }
+
+  app.addEventListener('click', (e) => {
+    if (e.target.closest('[data-lab]')) {
+      modal.hidden = false;
+      modal.innerHTML = `<div class="panel settings-panel" role="dialog" aria-label="Modo prueba"><h2>Modo prueba <button class="btn small" data-close>Cerrar</button></h2>${labButtonsHtml()}</div>`;
+    }
+  });
+  modal.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-scn]');
+    if (b) runScenario(b.dataset.scn);
+  });
 
   let exitArmed = null;
   app.addEventListener('click', (e) => {

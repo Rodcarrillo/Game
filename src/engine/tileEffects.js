@@ -121,6 +121,33 @@ registerTileType('exam', { label: 'Examen', description: 'Una pregunta de CAP OR
 
 registerTileType('place', { label: 'Entrada', description: 'Puedes entrar al lugar.', resolve: () => null });
 
+registerTileType('abdo', { label: 'Bachelor of Abdo', description: 'Todos se van a Las Vegas un turno.', resolve: () => null });
+registerTileType('vstart', { label: 'Aeropuerto', description: 'Llegada a Las Vegas.', resolve: () => ({ title: 'Aeropuerto de Las Vegas', text: 'De vuelta donde aterrizaron.', tone: 'neutral' }) });
+registerTileType('vshot', {
+  label: 'Shots',
+  description: 'Tomas de 1 a 3.',
+  resolve(s, p, _t, { rng }) {
+    const n = rng.int(1, 3);
+    if (!s.config.shotsEnabled) {
+      changePemolares(s, p.id, n * 2, 'Casino');
+      return { title: `+${n * 2} Pemolares`, text: 'Suerte en el casino.', tone: 'good' };
+    }
+    giveShot(s, p.id, n, 'Las Vegas', rng);
+    return { title: `${n} ${s.config.shotWord}${n > 1 ? 's' : ''}`, text: 'Lo que pasa en Vegas…', tone: 'bad' };
+  },
+});
+registerTileType('vgive', {
+  label: 'Reparte',
+  description: 'Repartes de 1 a 3 shots.',
+  resolve(s, p, _t, { rng }) {
+    const n = rng.int(1, 3);
+    if (!s.config.shotsEnabled) return { title: 'Ronda en el Strip', text: 'Esta vez no pasa nada.', tone: 'neutral' };
+    return { title: `Reparte ${n}`, text: `${p.name} reparte ${n} ${s.config.shotWord}${n > 1 ? 's' : ''}.`, tone: 'great', gift: n };
+  },
+});
+registerTileType('vpem', { label: 'Reto · Pemolares', description: 'Cumple el reto y gana Pemolares.', resolve: () => null });
+registerTileType('vper', { label: 'Reto · Perrita', description: 'Cumple el reto y gana una Perrita.', resolve: () => null });
+
 registerTileType('ronda', {
   label: 'Ronda',
   description: 'Todos toman.',

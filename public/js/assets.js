@@ -165,6 +165,12 @@ export const TILE_STYLE = {
   ronda: { top: '#ff7a1a', side: '#b44f05', label: 'Ronda' },
   barra: { top: '#5b2a86', side: '#391657', label: 'Barra libre' },
   place: { top: '#ff5a1f', side: '#a8380c', label: 'Entrada' },
+  abdo: { top: '#ff4fd8', side: '#a3218a', label: 'Bachelor of Abdo' },
+  vstart: { top: '#ffffff', side: '#9aa7c7', label: 'Aeropuerto' },
+  vshot: { top: '#ffb400', side: '#b97a00', label: 'Shots' },
+  vgive: { top: '#9b5cff', side: '#6a2fd1', label: 'Reparte' },
+  vpem: { top: '#2e9c62', side: '#1b6b41', label: 'Reto · Pemolares' },
+  vper: { top: '#ffd84a', side: '#c99a00', label: 'Reto · Perrita' },
 };
 
 /** Ícono dentro de una casilla, centrado en (0,0), ~28px. */
@@ -192,6 +198,17 @@ export function tileGlyph(type) {
       return `<text y="7" text-anchor="middle" font-family="Titan One, sans-serif" font-size="19" fill="#2f6fe0">A+</text>`;
     case 'ronda':
       return `<path d="M-7 -9h14l-2 18h-10z" fill="#fff" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/><path d="M-6 -3h12l-1.4 11h-9.2z" fill="#ffb400"/>`;
+    case 'abdo':
+    case 'vstart':
+      return `<g transform="scale(.9)"><path d="M-12 2h24l6-5-4 9h-28z" fill="#fff" stroke="${INK}" stroke-width="2"/><path d="M-3 2l-7-9h5l10 9z" fill="#fff" stroke="${INK}" stroke-width="2"/></g>`;
+    case 'vshot':
+      return `<path d="M-7 -9h14l-2 18h-10z" fill="#fff" stroke="${INK}" stroke-width="2" stroke-linejoin="round"/><path d="M-6 -3h12l-1.4 11h-9.2z" fill="#ff7a1a"/>`;
+    case 'vgive':
+      return `<path d="M-10 0h14m-5-6 6 6-6 6" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M6 -8h6l-1 14h-4z" fill="#fff"/>`;
+    case 'vpem':
+      return `<rect x="-12" y="-7" width="24" height="14" rx="2" fill="#a9ddb2" stroke="#fff" stroke-width="2"/><text y="4" text-anchor="middle" font-size="9" font-weight="900" fill="#134a28">RETO</text>`;
+    case 'vper':
+      return `<circle r="10" fill="#fff6c9" stroke="#d99400" stroke-width="2"/><text y="4" text-anchor="middle" font-size="8" font-weight="900" fill="#b36b00">RETO</text>`;
     case 'place':
       return `<path d="M-8 9v-14a8 8 0 0 1 16 0v14z" fill="#3a2416" stroke="#fff" stroke-width="2.5"/><circle cx="4" cy="2" r="1.6" fill="#ffd84a"/>`;
     case 'barra':

@@ -119,7 +119,7 @@ body.tv { overflow: hidden; }
 /* barra superior */
 .topbar {
   position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); top: calc(14px + env(safe-area-inset-top, 0px));
-  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; z-index: 5; max-width: calc(100% - 340px);
+  display: flex; flex-wrap: wrap; gap: 10px; align-items: center; z-index: 40; max-width: calc(100% - 340px);
 }
 .chip {
   display: inline-flex; align-items: center; gap: 8px;
@@ -616,3 +616,39 @@ h3.lose { color: var(--red); }
 .shot-card p { margin: 0; font-weight: 600; color: #c9d2e8; font-size: 20px; }
 .shot-card .btn { font-size: 28px; padding: 12px 40px; }
 .place-card .what { font-weight: 600; margin: 4px 0; }
+
+.vegas-big { font-family: var(--display); font-size: 54px; fill: #ff4fd8; letter-spacing: .04em; }
+.vegas-small { font-family: var(--display); font-size: 15px; fill: #1b2440; letter-spacing: .08em; }
+.spin-slow { transform-box: fill-box; transform-origin: center; animation: rays 30s linear infinite; }
+
+/* Bachelor of Abdo */
+.abdo { background: radial-gradient(circle at 50% 40%, #3b1a6b, #0b0a2a); overflow: hidden; }
+.abdo-scene { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+.abdo-title { text-align: center; animation: popIn .6s cubic-bezier(.3,1.6,.5,1); }
+.abdo-title small { display: block; font-family: var(--display); font-size: 24px; color: #6ff0ff; }
+.abdo-title b { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 7vw, 90px); color: #ff4fd8; -webkit-text-stroke: 3px #fff; paint-order: stroke fill; line-height: 1; }
+.abdo-call { display: flex; align-items: flex-end; gap: 40px; animation: fadeOut .6s 5.2s forwards; }
+.abdo-lander { position: relative; display: grid; justify-items: center; }
+.phone-ring { position: absolute; right: -24px; top: 20px; font-size: 40px; animation: ring .25s linear infinite; }
+.ring-text { margin-top: 8px; background: #fff; border: 4px solid var(--ink); border-radius: 18px; padding: 6px 14px; font-weight: 700; animation: popIn .4s .5s both; }
+@keyframes ring { 50% { transform: rotate(18deg); } }
+.abdo-crew { display: flex; gap: 14px; }
+.crew { animation: runIn 1s cubic-bezier(.3,1.3,.5,1) both; animation-delay: calc(1s + var(--i) * .35s); }
+@keyframes runIn { from { transform: translateX(110vw); } }
+@keyframes fadeOut { to { opacity: 0; transform: scale(.8); } }
+.plane-wrap { position: absolute; left: 0; right: 0; bottom: 6%; height: 220px; pointer-events: none; }
+.plane { position: absolute; left: 0; bottom: 0; animation: takeoff 3.4s 5s cubic-bezier(.5,0,.7,1) both; }
+.back .plane { animation: landing 5s .5s ease-in-out both; }
+@keyframes takeoff { 0% { transform: translateX(-110%) translateY(0); } 45% { transform: translateX(20vw) translateY(0); } 100% { transform: translateX(120vw) translateY(-70vh) rotate(-14deg); } }
+@keyframes landing { 0% { transform: translateX(120vw) translateY(-60vh) scaleX(-1) rotate(10deg); } 100% { transform: translateX(-120%) translateY(0) scaleX(-1); } }
+.plane-text { font-family: var(--display); font-size: 20px; fill: #1b2440; }
+.plane .av::after { display: none; }
+.challenge-card { max-width: 640px; }
+.ch-who { display: flex; align-items: flex-end; justify-content: center; gap: 12px; }
+.ch-text { font-family: var(--display); font-size: 30px; line-height: 1.15; margin: 10px 0; text-wrap: balance; }
+.ch-prize { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; }
+.ch-btns { display: flex; gap: 12px; justify-content: center; margin-top: 12px; }
+.lab-panel { padding: 16px 20px; }
+.lab-panel h2 { font-size: 26px; }
+.lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
+.lab-grid .btn { justify-content: flex-start; text-align: left; }

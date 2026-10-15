@@ -200,6 +200,7 @@ export class Room {
       return { ok: true };
     }
     if (action?.type === 'SHOT_OK') return this.runner.dispatch({ type: 'SHOT_OK', host: true });
+    if (action?.type === 'CHALLENGE_RESULT') return this.runner.dispatch({ type: 'CHALLENGE_RESULT', host: true, done: !!action.done });
     if (!isHostAction(action?.type)) return { ok: false, error: 'Acción no permitida' };
     if (action.type === 'REMOVE_PLAYER') {
       for (const [t, id] of Object.entries(this.playerTokens)) if (id === action.playerId) delete this.playerTokens[t];

@@ -5,3 +5,4 @@ export { createRunner } from './runner.js';
 export { listMinigames, MINIGAMES, registerMinigame } from './minigames/index.js';
 export { registerTileType, tileTypes, CHAOS_EVENTS } from './tileEffects.js';
 export { ITEMS, itemCatalog } from './items.js';
+export { buildVegasBoard, DEFAULT_CHALLENGES } from './vegas.js';

@@ -301,3 +301,45 @@ test('entradas: Escuela, La Pérez y Safari tienen casilla de entrada', () => {
   const places = Object.values(b.tiles).filter((t) => t.type === 'place').map((t) => t.place).sort();
   assert.deepEqual(places, ['disco', 'escuela', 'safari']);
 });
+
+test('Bachelor of Abdo: viaje a Las Vegas, turno exprés y regreso a las mismas casillas', () => {
+  let s = dispatch(lobby(3), { type: 'START' }, { now: 0 }).state;
+  const abdo = s.board.order.filter((id) => s.board.tiles[id].type === 'abdo');
+  assert.equal(abdo.length, 1, 'debe haber exactamente una casilla Bachelor of Abdo');
+  s.players.p1.tileId = 'L2';
+  s.players.p2.tileId = 'T2';
+  s.players.p0.tileId = abdo[0];
+  s.move = { playerId: 'p0', stepsLeft: 0, total: 1, stop: 'land' };
+  s.phase = 'MOVEMENT';
+  s.timer = { at: 0, seq: 700, reason: 'move' };
+  s.timerSeq = 700;
+  s = dispatch(s, { type: 'TICK', seq: 700 }, { now: 0 }).state;
+  assert.equal(s.phase, 'ABDO_INTRO');
+  // avanza hasta el regreso y revisa que cada quien vuelva a su casilla
+  let guard = 0;
+  let now = 0;
+  const seen = new Set();
+  while (s.phase !== 'VEGAS_RETURN' && guard++ < 5000) {
+    const bots = botActions(s, () => 0.5).filter((b) => !seen.has(b.key));
+    if (bots.length) { seen.add(bots[0].key); now += bots[0].delayMs; const r = dispatch(s, bots[0].action, { now }); if (r.ok) s = r.state; continue; }
+    now = s.timer.at;
+    s = dispatch(s, { type: 'TICK', seq: s.timer.seq }, { now }).state;
+  }
+  assert.equal(s.board.theme, 'vegas');
+  now = s.timer.at;
+  s = dispatch(s, { type: 'TICK', seq: s.timer.seq }, { now }).state;
+  assert.equal(s.players.p1.tileId, 'L2');
+  assert.equal(s.players.p2.tileId, 'T2');
+  assert.ok(!s.board.theme);
+  const { s: end } = simulate(s);
+  assert.equal(end.phase, 'WINNER_REVEAL');
+});
+
+test('reto de Las Vegas: sólo el host decide y paga al cumplir', () => {
+  let s = dispatch(lobby(2), { type: 'START' }, { now: 0 }).state;
+  s.phase = 'CHALLENGE';
+  s.pending = { kind: 'challenge', playerId: 'p0', token: 'x', text: 'baila', reward: 'perritas', amount: 1, result: null };
+  assert.equal(dispatch(s, { type: 'CHALLENGE_RESULT', playerId: 'p0', done: true }, { now: 0 }).ok, false);
+  const r = dispatch(s, { type: 'CHALLENGE_RESULT', host: true, done: true }, { now: 0 });
+  assert.equal(r.state.players.p0.perritas, 1);
+});

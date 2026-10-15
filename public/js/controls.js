@@ -86,6 +86,15 @@ export function controlsHtml(state, you, { local = false } = {}) {
       }
       if (pend?.done === 'bought' && isMe) return `<div class="ph-wait mine"><b>¡+${pend.bought} Perrita${pend.bought > 1 ? 's' : ''}!</b></div>`;
       return `<div class="ph-wait"><b>${curName} está en la tienda</b></div>`;
+    case 'ABDO_INTRO':
+      return `<div class="ph-wait mine"><b>¡Bachelor of Abdo!</b><p>Todos al avión: nos vamos a Las Vegas.</p></div>`;
+    case 'VEGAS_RETURN':
+      return '<div class="ph-wait"><b>De regreso a Isla Pemol</b><p>Cada quien vuelve a su casilla.</p></div>';
+    case 'CHALLENGE':
+      if (pend?.playerId === me) {
+        return `<div class="ph-wait mine"><small>Tu reto</small><b>${esc(pend.text)}</b><p>Si lo cumples: ${pend.reward === 'perritas' ? `${perritaSvg(20)} +${pend.amount}` : `${pemolarSvg(18)} +${pend.amount}`}. El host decide.</p>${pend.result ? `<p><b>${pend.result === 'done' ? '¡Cumpliste!' : 'No cumpliste'}</b></p>` : ''}</div>`;
+      }
+      return `<div class="ph-wait"><b>Reto para ${esc(state.players[pend?.playerId]?.name || '')}</b><p>${esc(pend?.text || '')}</p></div>`;
     case 'SHOT_CONFIRM': {
       const word = (state.config.shotWord || 'shot').toUpperCase();
       if (pend?.playerId === me) {
