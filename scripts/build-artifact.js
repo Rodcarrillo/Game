@@ -9,7 +9,23 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const esbuild = await import(process.env.ESBUILD ? pathToFileURL(path.join(process.env.ESBUILD, 'lib', 'main.js')).href : 'esbuild');
 const build = esbuild.build || esbuild.default.build;
 
+// Incrusta personajes y logo como data URIs para que el artefacto no dependa del servidor.
+const imagesPlugin = {
+  name: 'inline-images',
+  setup(b) {
+    b.onLoad({ filter: /public[\\/]js[\\/]images\.js$/ }, () => {
+      const uri = (f, mime) => `data:${mime};base64,${fs.readFileSync(path.join(ROOT, 'public', f)).toString('base64')}`;
+      const chars = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`c${i + 1}`, uri(`img/chars/c${i + 1}.webp`, 'image/webp')]));
+      return {
+        contents: `export const CHAR_SRC = ${JSON.stringify(chars)};\nexport const PEMOL_LOGO = ${JSON.stringify(uri('img/pemol-logo.png', 'image/png'))};`,
+        loader: 'js',
+      };
+    });
+  },
+};
+
 const res = await build({
+  plugins: [imagesPlugin],
   entryPoints: [path.join(ROOT, 'artifact', 'entry.js')],
   bundle: true,
   format: 'iife',

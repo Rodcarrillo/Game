@@ -2,8 +2,9 @@
 // (PerritaShop), resultado de casilla, minijuegos (MiniGameBridge en pantalla)
 // y resultados finales (FinalResults) con tarjeta para compartir.
 
-import { beanSvg, perritaSvg, pemolarSvg, TILE_STYLE, esc } from './assets.js';
+import { avatarHtml, perritaSvg, pemolarSvg, shotSvg, dieFaceSvg, companionSvg, itemIconSvg, TILE_STYLE, esc } from './assets.js';
 import { MG_VIEWS, tickLiveClocks } from './minigame-views.js';
+import { DOG_PATH } from './assets.js';
 import { rankPlayers } from './hud.js';
 
 export const clock = {
@@ -14,7 +15,7 @@ export const clock = {
 const name = (s, id) => esc(s.players[id]?.name ?? '');
 const avatar = (s, id, size = 64, mood) => {
   const p = s.players[id];
-  return p ? beanSvg(p.color, p.hat, size, { mood }) : '';
+  return p ? avatarHtml(p, Math.round(size * 1.25), { crown: mood === 'crown' }) : '';
 };
 
 function dieFaces(value, max) {
@@ -23,8 +24,15 @@ function dieFaces(value, max) {
     const v = ((value + i * 3) % max) + 1;
     others.push(v === value ? ((v % max) + 1) : v);
   }
-  return `<div class="die-face f1">${value}</div>${others.map((v, i) => `<div class="die-face f${i + 2}">${v}</div>`).join('')}`;
+  return `<div class="die-face f1">${dieFaceSvg(value)}</div>${others.map((v, i) => `<div class="die-face f${i + 2}">${dieFaceSvg(v)}</div>`).join('')}`;
 }
+
+/** Dado negro con anillos de luz. */
+function dieBlock(cls, value, max, i = 0) {
+  return `<div class="die-wrap" style="--i:${i}"><i class="orbit"></i><i class="orbit o2"></i><div class="die ${cls}">${dieFaces(value, max)}</div></div>`;
+}
+
+export const itemIcon = (id) => itemIconSvg(id, 38);
 
 export class Overlays {
   constructor(root, { isHost = false, local = false, onAction = () => {} } = {}) {
@@ -70,6 +78,40 @@ export class Overlays {
       this.root.innerHTML = html;
       if (state.phase === 'WINNER_REVEAL') this.afterWinner(state);
     }
+    this.shotEvents(state);
+  }
+
+  /** Avisos de "¡SHOT!" que no dependen de la fase. */
+  shotEvents(state) {
+    if (!this.fx) {
+      this.fx = document.createElement('div');
+      this.fx.className = 'shot-fx';
+      this.root.parentElement.appendChild(this.fx);
+    }
+    if (this.seenShots == null) { this.seenShots = state.eventSeq; return; }
+    const word = state.config.shotWord === 'trago' ? 'TRAGO' : 'SHOT';
+    let delay = 0;
+    for (const ev of state.events) {
+      if (ev.id <= this.seenShots) continue;
+      this.seenShots = ev.id;
+      if (!['shot', 'shot-saved', 'shot-pass', 'companion'].includes(ev.type)) continue;
+      const p = state.players[ev.playerId];
+      if (!p) continue;
+      let html;
+      if (ev.type === 'shot') html = `${shotSvg(64)}<div><b>¡${word}${ev.n > 1 ? ` ×${ev.n}` : ''}!</b><span>${esc(p.name)}</span><small>${esc(ev.reason || '')}</small></div>`;
+      else if (ev.type === 'shot-saved') html = `<div><b>¡Salvado!</b><span>${esc(p.name)}</span><small>${esc(ev.reason)}</small></div>`;
+      else if (ev.type === 'shot-pass') html = `<div><b>¡Pásalo!</b><span>${esc(p.name)} → ${esc(state.players[ev.to]?.name || '')}</span></div>`;
+      else html = `${companionSvg(ev.companion, 70)}<div><b>¡Llegó acompañado!</b><span>${esc(p.name)}</span><small>Ganó en el Safari</small></div>`;
+      const el = document.createElement('div');
+      el.className = `shot-pop ${ev.type}`;
+      el.style.setProperty('--pc', p.color);
+      el.style.animationDelay = `${delay}ms`;
+      el.innerHTML = `<span class="sp-av">${avatarHtml(p, 70)}</span>${html}`;
+      this.fx.appendChild(el);
+      setTimeout(() => el.remove(), 2600 + delay);
+      delay += 450;
+      if (navigator.vibrate && ev.type === 'shot') { /* sólo celulares */ }
+    }
   }
 
   pausedHtml(state) {
@@ -82,8 +124,9 @@ export class Overlays {
       case 'LOBBY':
         return '';
       case 'BOARD_INTRO':
-        return `<div class="ov-center"><div class="banner intro"><small>Bienvenidos a</small><h1>Isla Gomita</h1>
+        return `<div class="ov-center"><div class="banner intro"><small>Bienvenidos a</small><h1>Isla Pemol</h1>
           <p>${s.config.totalRounds} rondas · compra Perritas con tus Pemolares · gana quien tenga más Perritas</p>
+          ${s.config.shotsEnabled ? `<p class="adult">Juego para mayores de 18 · aquí se pierde y se toma. Hidrátense entre rondas.</p>` : ''}
           <div class="intro-money"><span>${perritaSvg(44)} Perritas</span><span>${pemolarSvg(40)} Pemolares</span></div></div></div>`;
       case 'TURN_START': {
         const id = s.currentPlayerId;
@@ -94,12 +137,17 @@ export class Overlays {
         const id = s.currentPlayerId;
         const p = s.players[id];
         const hint = p.isBot ? 'Pensando…' : this.local ? 'Pulsa TIRAR o la barra espaciadora' : '¡Tira desde tu celular!';
-        return `<div class="ov-dice"><div class="die-wrap waiting"><div class="die idle">${'<div class="die-face f1">?</div><div class="die-face f2">?</div><div class="die-face f3">?</div><div class="die-face f4">?</div><div class="die-face f5">?</div><div class="die-face f6">?</div>'}</div></div>
-          <div class="dice-hint"><b>${name(s, id)}</b>, tira el dado · ${s.config.diceMin}–${s.config.diceMax}<small>${hint}</small></div>${this.countdown(s)}</div>`;
+        const dm = s.pending?.dice;
+        const n = dm?.item === 'double' ? 2 : dm?.item === 'triple' ? 3 : 1;
+        const label = dm ? { double: 'Dado doble', triple: 'Dado triple', choice: `Dado a elección: ${dm.value}`, slow: 'Dado lento (1–3)' }[dm.item] : `${s.config.diceMin}–${s.config.diceMax}`;
+        const dice = Array.from({ length: n }, (_, i) => dieBlock('idle', ((i * 2) % 6) + 1, 6, i)).join('');
+        return `<div class="ov-dice"><div class="dice-row">${dice}</div>
+          <div class="dice-hint"><b>${name(s, id)}</b>, tira el dado · ${label}<small>${hint}</small></div>${this.countdown(s)}</div>`;
       }
       case 'MOVEMENT': {
         if (!s.anim || !s.anim.delay || !s.lastRoll) return '';
-        return `<div class="ov-dice"><div class="die-wrap"><div class="die roll">${dieFaces(s.lastRoll.value, s.config.diceMax)}</div></div>
+        const dice = (s.lastRoll.dice || [s.lastRoll.value]).map((v, i) => dieBlock('roll', v, s.config.diceMax, i)).join('');
+        return `<div class="ov-dice"><div class="dice-row">${dice}</div>
           <div class="dice-result" style="animation-delay:${s.anim.delay - 150}ms">¡${s.lastRoll.value}!</div></div>`;
       }
       case 'ROUTE_CHOICE': {
@@ -122,6 +170,42 @@ export class Overlays {
             <p class="muted">${pend.canBuy ? `Puede comprar hasta ${pend.maxQty}` : 'No le alcanza. ¡Junta más Pemolares!'}${pend.passing ? ' · va de paso' : ''}</p>${this.countdown(s)}`;
         }
         return `<div class="ov-low"><div class="card shop-card"><div class="shop-awning"></div><h3>Tienda de Perritas</h3>${body}</div></div>`;
+      }
+      case 'ITEM_SHOP': {
+        const pend = s.pending;
+        const p = s.players[pend.playerId];
+        const done = pend.done;
+        return `<div class="ov-low"><div class="card item-shop ${done ? 'closed' : ''}"><div class="stall-roof"></div><h3>Tienda de objetos</h3>
+          <div class="item-grid">${pend.catalog.map((it, i) => `<div class="item ${pend.bought.includes(it.id) ? 'sold' : ''} ${it.price > p.pemolares ? 'pricey' : ''}" style="--d:${i * 70}ms"><span class="ii">${itemIcon(it.id)}</span><b>${esc(it.name)}</b><span class="ip">${pemolarSvg(16)} ${it.price}</span></div>`).join('')}</div>
+          <p class="muted">${done ? (pend.bought.length ? `${name(s, p.id)} se llevó: ${pend.bought.map((b) => esc(pend.catalog.find((c) => c.id === b)?.name)).join(', ')}` : `${name(s, p.id)} no compró nada`) : `${name(s, p.id)} tiene ${p.pemolares} Pemolares · objetos ${p.items.length}/${pend.maxItems}`}</p>
+          ${done ? '' : this.countdown(s)}</div></div>`;
+      }
+      case 'SAFARI': {
+        const pend = s.pending;
+        const r = pend.result;
+        const body = !r
+          ? `<p>${name(s, pend.playerId)} apuesta Pemolares contra la casa: si su dado sale más alto, gana el doble${pend.hasCompanion ? '' : ' y se lleva una acompañante'}.</p>
+             <div class="bets">${pend.bets.map((b) => `<span>${pemolarSvg(18)} ${b}</span>`).join('')}</div>${this.countdown(s)}`
+          : `<div class="safari-roll"><div><small>${name(s, pend.playerId)}</small>${dieBlock('roll', r.you, 6)}</div><b>VS</b><div><small>La casa</small>${dieBlock('roll', r.house, 6, 1)}</div></div>
+             <h3 class="${r.win ? 'win' : 'lose'}">${r.win ? `¡Ganó ${r.bet} Pemolares!` : `Perdió ${r.bet} Pemolares`}</h3>
+             ${r.companion ? `<div class="comp-reveal">${companionSvg(r.companion, 110)}<p>¡Y se va acompañado el resto de la partida!</p></div>` : ''}`;
+        return `<div class="ov-low"><div class="card safari-card"><span class="tile-kind" style="--tc:#8aa53a">Safari</span><h3>Zona Safari</h3>${body}</div></div>`;
+      }
+      case 'EXAM': {
+        const pend = s.pending;
+        const r = pend.result;
+        return `<div class="ov-low"><div class="card exam-card"><span class="tile-kind" style="--tc:#2f6fe0">Escuela Piaget · Examen</span>
+          <p class="exam-q">${esc(pend.statement)}</p>
+          ${r ? `<h3 class="${r.ok ? 'win' : 'lose'}">${r.ok ? '¡Aprobado! +5 Pemolares' : `Reprobado${s.config.shotsEnabled ? ` · ¡${s.config.shotWord}!` : ' · −3 Pemolares'}`}</h3><p class="muted">Era ${r.correct === 'fact' ? 'FACT (dato real)' : 'CAP (mentira)'}</p>`
+            : `<p class="muted">${name(s, pend.playerId)} responde: ¿CAP o FACT?</p>${this.countdown(s)}`}</div></div>`;
+      }
+      case 'SHOT_GIFT': {
+        const pend = s.pending;
+        const word = s.config.shotWord;
+        return `<div class="ov-low"><div class="card gift-card">${shotSvg(48)}<h3>${name(s, pend.playerId)} reparte ${pend.total} ${word}${pend.total > 1 ? 's' : ''}</h3>
+          <p class="muted">${esc(pend.reason || '')}</p>
+          <div class="gift-left">${Array.from({ length: pend.total }, (_, i) => `<span class="${i < pend.given.length ? 'used' : ''}">${i < pend.given.length ? name(s, pend.given[i]) : '?'}</span>`).join('')}</div>
+          ${pend.remaining ? this.countdown(s) : ''}</div></div>`;
       }
       case 'TILE_RESOLUTION': {
         const t = s.lastTile;
@@ -160,7 +244,7 @@ export class Overlays {
       case 'MINIGAME_RESULTS': {
         const mg = s.minigame;
         return `<div class="ov-full mg-results"><div class="mg-panel"><div class="mg-title small">${esc(mg.name)} · Resultados</div>
-          <ol class="podium">${mg.results.map((r) => `<li class="place-${r.place}"><span class="pl">${r.place}º</span>${avatar(s, r.playerId, 48, r.place === 1 ? 'wow' : undefined)}<span class="pn">${name(s, r.playerId)}</span><span class="ps">${esc(r.label)}</span><span class="pr">${pemolarSvg(24)}+${r.reward}</span></li>`).join('')}</ol>
+          <ol class="podium">${mg.results.map((r) => `<li class="place-${r.place}"><span class="pl">${r.place}º</span>${avatar(s, r.playerId, 48, r.place === 1 ? 'wow' : undefined)}<span class="pn">${name(s, r.playerId)}</span><span class="ps">${esc(r.label)}</span><span class="pr">${pemolarSvg(22)}+${r.reward}</span>${r.shots ? `<span class="pshot">${shotSvg(24)}×${r.shots}</span>` : ''}</li>`).join('')}</ol>
           ${this.countdown(s)}</div></div>`;
       }
       case 'BOARD_END':
@@ -183,8 +267,8 @@ export class Overlays {
 
   rankingTable(s) {
     const r = s.final.ranking;
-    return `<table class="rank-table"><thead><tr><th></th><th>Jugador</th><th>${perritaSvg(26)}<span class="sr">Perritas</span></th><th>${pemolarSvg(24)}<span class="sr">Pemolares</span></th><th>Minijuegos</th></tr></thead><tbody>
-      ${r.slice().reverse().map((x, i) => `<tr style="animation-delay:${i * 450}ms" class="${x.rank === 1 ? 'first' : ''}"><td class="rk">${x.rank}º</td><td class="who">${avatar(s, x.playerId, 38)}${name(s, x.playerId)}</td><td class="num">${x.perritas}</td><td class="num">${x.pemolares}</td><td class="num">${x.minigameWins}</td></tr>`).reverse().join('')}
+    return `<table class="rank-table"><thead><tr><th></th><th>Jugador</th><th>${perritaSvg(26)}<span class="sr">Perritas</span></th><th>${pemolarSvg(24)}<span class="sr">Pemolares</span></th><th>Minijuegos</th>${s.config.shotsEnabled ? `<th>${shotSvg(24)}<span class="sr">${s.config.shotWord}s</span></th>` : ''}</tr></thead><tbody>
+      ${r.slice().reverse().map((x, i) => `<tr style="animation-delay:${i * 450}ms" class="${x.rank === 1 ? 'first' : ''}"><td class="rk">${x.rank}º</td><td class="who">${avatar(s, x.playerId, 38)}${name(s, x.playerId)}</td><td class="num">${x.perritas}</td><td class="num">${x.pemolares}</td><td class="num">${x.minigameWins}</td>${s.config.shotsEnabled ? `<td class="num">${s.players[x.playerId].shots}</td>` : ''}</tr>`).reverse().join('')}
     </tbody></table>`;
   }
 
@@ -193,8 +277,8 @@ export class Overlays {
     const tie = win.length > 1;
     return `<div class="ov-full winner"><canvas class="confetti"></canvas><div class="winner-wrap">
       <div class="winner-hero">
-        <div class="winner-avatars">${win.map((id) => `<div class="w-av">${avatar(s, id, 170, 'wow')}</div>`).join('')}</div>
-        <small>${tie ? 'Empate en la cima' : 'Ganador de Isla Gomita'}</small>
+        <div class="winner-avatars">${win.map((id) => `<div class="w-av">${avatar(s, id, 170, 'crown')}</div>`).join('')}</div>
+        <small>${tie ? 'Empate en la cima' : 'Ganador de Isla Pemol'}</small>
         <h1>${win.map((id) => name(s, id)).join(' y ')}</h1>
         <p>${perritaSvg(30)} ${s.players[win[0]].perritas} Perritas · ${pemolarSvg(26)} ${s.players[win[0]].pemolares} Pemolares</p>
       </div>
@@ -252,18 +336,25 @@ function confetti(canvas) {
 
 // --- tarjeta de resultados compartible ---
 function star(ctx, x, y, r) {
+  // moneda Perrita: disco dorado con perrito
   ctx.beginPath();
-  for (let i = 0; i < 10; i++) {
-    const a = -Math.PI / 2 + (i * Math.PI) / 5;
-    const rr = i % 2 ? r * 0.48 : r;
-    ctx.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-  }
-  ctx.closePath();
-  ctx.fillStyle = '#ffc531';
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffb400';
   ctx.fill();
   ctx.lineWidth = 4;
-  ctx.strokeStyle = '#2a1d5c';
+  ctx.strokeStyle = '#1b2440';
   ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.76, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffd84a';
+  ctx.fill();
+  const k = (r * 1.45) / 64;
+  ctx.save();
+  ctx.translate(x - 32 * k + 2, y - 32 * k + 2);
+  ctx.scale(k, k);
+  ctx.fillStyle = '#f29a00';
+  ctx.fill(new Path2D(DOG_PATH));
+  ctx.restore();
 }
 
 export function resultsCard(s) {
@@ -272,17 +363,17 @@ export function resultsCard(s) {
   c.height = 1350;
   const x = c.getContext('2d');
   const g = x.createLinearGradient(0, 0, 0, 1350);
-  g.addColorStop(0, '#8fd3ff');
-  g.addColorStop(1, '#c7a8ff');
+  g.addColorStop(0, '#1e3fae');
+  g.addColorStop(1, '#0b1f66');
   x.fillStyle = g;
   x.fillRect(0, 0, 1080, 1350);
   const font = (w, px) => `${w} ${px}px "Lilita One", "Baloo 2", system-ui, sans-serif`;
-  x.fillStyle = '#2a1d5c';
+  x.fillStyle = '#ffffff';
   x.textAlign = 'center';
   x.font = font(400, 54);
   x.fillText("MICHELSON'S ARCADE", 540, 110);
   x.font = font(700, 34);
-  x.fillText(`Isla Gomita · ${s.config.totalRounds} rondas`, 540, 162);
+  x.fillText(`Isla Pemol · ${s.config.totalRounds} rondas`, 540, 162);
   const win = s.final.winners;
   // panel ganador
   const rr = (X, Y, W, H, R, fill) => {
@@ -291,12 +382,12 @@ export function resultsCard(s) {
     x.fillStyle = fill;
     x.fill();
     x.lineWidth = 8;
-    x.strokeStyle = '#2a1d5c';
+    x.strokeStyle = '#1b2440';
     x.stroke();
   };
   rr(80, 210, 920, 330, 46, '#fff');
   star(x, 540, 300, 62);
-  x.fillStyle = '#2a1d5c';
+  x.fillStyle = '#1b2440';
   x.font = font(400, 78);
   x.fillText(win.map((id) => s.players[id].name).join(' y '), 540, 440);
   x.font = font(700, 36);
@@ -311,9 +402,9 @@ export function resultsCard(s) {
     x.ellipse(190, y + 46, 26, 32, 0, 0, Math.PI * 2);
     x.fill();
     x.lineWidth = 5;
-    x.strokeStyle = '#2a1d5c';
+    x.strokeStyle = '#1b2440';
     x.stroke();
-    x.fillStyle = '#2a1d5c';
+    x.fillStyle = '#1b2440';
     x.textAlign = 'left';
     x.font = font(400, 44);
     x.fillText(`${r.rank}º`, 108, y + 62);
@@ -322,20 +413,20 @@ export function resultsCard(s) {
     x.font = font(400, 42);
     x.fillText(String(r.perritas), 790, y + 62);
     star(x, 830, y + 47, 22);
-    x.fillStyle = '#2a1d5c';
+    x.fillStyle = '#1b2440';
     x.fillText(String(r.pemolares), 940, y + 62);
     x.beginPath();
     x.arc(966, y + 47, 15, 0, Math.PI * 2);
-    x.fillStyle = '#ffc94a';
+    x.fillStyle = '#7fc98f';
     x.fill();
     x.lineWidth = 4;
-    x.strokeStyle = '#2a1d5c';
+    x.strokeStyle = '#1b2440';
     x.stroke();
     x.textAlign = 'center';
     y += 112;
     if (y > 1220) break;
   }
-  x.fillStyle = '#2a1d5c';
+  x.fillStyle = '#ffffff';
   x.font = font(700, 28);
   x.fillText(new Date().toLocaleDateString('es-MX', { day: 'numeric', month: 'long', year: 'numeric' }), 540, 1310);
   return c;

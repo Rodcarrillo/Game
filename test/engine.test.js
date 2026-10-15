@@ -56,6 +56,7 @@ test('el tablero es un grafo válido en todas sus variantes', () => {
       assert.deepEqual(validateBoard(b), [], `${boardLength}/${boardBranches}`);
       const forks = Object.values(b.tiles).filter((t) => t.next.length > 1);
       assert.equal(forks.length, boardBranches ? 2 : 0);
+      assert.ok(Object.values(b.tiles).some((t) => t.type === 'itemshop'));
       for (const f of forks) assert.equal(f.type, 'choice');
       assert.ok(Object.values(b.tiles).some((t) => t.type === 'shop'));
     }
@@ -193,4 +194,88 @@ test('ranking: Perritas mandan, Pemolares desempatan sólo si está activo', () 
   assert.equal(r[0].rank, 1);
   assert.equal(r[1].rank, 1);
   assert.equal(r.find((x) => x.playerId === 'p2').rank, 3);
+});
+
+test('fases nuevas: tienda de objetos, Safari, Examen y regalo de shots aparecen y terminan', () => {
+  const all = new Set();
+  let shots = 0;
+  let companions = 0;
+  let used = 0;
+  for (let i = 0; i < 12; i++) {
+    const { s, phases } = simulate(dispatch(lobby(4, { totalRounds: 10 }, `nuevo${i}`), { type: 'START' }, { now: 0 }).state);
+    assert.equal(s.phase, 'WINNER_REVEAL');
+    phases.forEach((p) => all.add(p));
+    for (const id of s.order) {
+      shots += s.players[id].shots;
+      if (s.players[id].companion) companions++;
+      used += s.players[id].stats.itemsUsed;
+      assert.ok(s.players[id].items.length <= s.config.maxItems);
+    }
+  }
+  for (const ph of ['ITEM_SHOP', 'SAFARI', 'EXAM', 'SHOT_GIFT']) assert.ok(all.has(ph), `nunca pasó por ${ph}`);
+  assert.ok(shots > 0 && companions > 0 && used > 0);
+});
+
+test('sin modo shots no hay shots ni objetos de shots', () => {
+  for (let i = 0; i < 4; i++) {
+    const { s, phases } = simulate(dispatch(lobby(3, { totalRounds: 6, shotsEnabled: false }, `seco${i}`), { type: 'START' }, { now: 0 }).state);
+    assert.ok(!phases.has('SHOT_GIFT'));
+    for (const id of s.order) {
+      assert.equal(s.players[id].shots, 0);
+      assert.ok(!s.players[id].items.some((it) => it === 'pass' || it === 'water'));
+    }
+  }
+});
+
+function rollReady(items = []) {
+  let s = dispatch(lobby(2), { type: 'START' }, { now: 0 }).state;
+  s.players.p0.isBot = false;
+  s.players.p0.items = items.slice();
+  s.phase = 'DICE_ROLL';
+  s.turnIndex = 0;
+  s.pending = { kind: 'roll', playerId: 'p0', token: 'r', dice: null, used: [] };
+  return s;
+}
+
+test('objetos: dado a elección, dado doble y validaciones', () => {
+  let s = rollReady(['choice', 'double']);
+  assert.equal(dispatch(s, { type: 'USE_ITEM', playerId: 'p0', item: 'choice', value: 9 }, { now: 0 }).ok, false);
+  assert.equal(dispatch(s, { type: 'USE_ITEM', playerId: 'p1', item: 'choice', value: 3 }, { now: 0 }).ok, false);
+  s = dispatch(s, { type: 'USE_ITEM', playerId: 'p0', item: 'choice', value: 4 }, { now: 0 }).state;
+  assert.deepEqual(s.players.p0.items, ['double']);
+  assert.equal(dispatch(s, { type: 'USE_ITEM', playerId: 'p0', item: 'double' }, { now: 0 }).ok, false, 'dos dados especiales');
+  s = dispatch(s, { type: 'ROLL', playerId: 'p0' }, { now: 0 }).state;
+  assert.equal(s.lastRoll.value, 4);
+  let d = rollReady(['double']);
+  d = dispatch(d, { type: 'USE_ITEM', playerId: 'p0', item: 'double' }, { now: 0 }).state;
+  d = dispatch(d, { type: 'ROLL', playerId: 'p0' }, { now: 0 }).state;
+  assert.equal(d.lastRoll.dice.length, 2);
+  assert.equal(dispatch(rollReady([]), { type: 'USE_ITEM', playerId: 'p0', item: 'triple' }, { now: 0 }).ok, false);
+});
+
+test('shots: el vaso de agua salva y el límite se respeta', async () => {
+  const { giveShot } = await import('../src/engine/wallet.js');
+  const s = lobby(2, { shotLimit: 2 });
+  s.players.p0.items = ['water'];
+  giveShot(s, 'p0', 1, 'x');
+  assert.equal(s.players.p0.shots, 0);
+  giveShot(s, 'p0', 5, 'x');
+  assert.equal(s.players.p0.shots, 2);
+});
+
+test('examen: la respuesta no se ve en el estado público', () => {
+  let s = dispatch(lobby(2), { type: 'START' }, { now: 0 }).state;
+  const exam = s.board.order.find((id) => s.board.tiles[id].type === 'exam');
+  s.players.p0.tileId = exam;
+  s.move = { playerId: 'p0', stepsLeft: 0, total: 1, stop: 'land' };
+  s.phase = 'MOVEMENT';
+  s.timer = { at: 0, seq: 500, reason: 'move' };
+  s.timerSeq = 500;
+  s = dispatch(s, { type: 'TICK', seq: 500 }, { now: 0 }).state;
+  assert.equal(s.phase, 'EXAM');
+  const pub = publicState(s);
+  assert.ok(!JSON.stringify(pub).includes('examAnswer'));
+  const r = dispatch(s, { type: 'EXAM_ANSWER', playerId: 'p0', answer: 'cap' }, { now: 1 });
+  assert.ok(r.ok);
+  assert.equal(typeof r.state.pending.result.ok, 'boolean');
 });

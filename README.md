@@ -1,6 +1,6 @@
-# MICHELSON'S ARCADE · Isla Gomita
+# MICHELSON'S ARCADE · Isla Pemol
 
-Juego de tablero multijugador estilo fiesta. **La tele es el tablero y cada celular es un control.**
+El juego de mesa para la peda (+18). **La tele es el tablero y cada celular es un control.**
 Los jugadores tiran el dado, avanzan casilla por casilla, eligen ruta en los cruces, juntan **Pemolares**
 y los cambian por **Perritas** en las tiendas. Gana quien tenga más Perritas al final.
 
@@ -27,6 +27,17 @@ Si se reinicia el servidor, las salas se restauran desde `data/rooms/`.
 los jugadores se turnan en el mismo dispositivo (con bots opcionales) y en los minijuegos cada quien
 usa sus teclas (Q/W, O/P, Z/X, N/M) o los botones en pantalla. Se regenera con `npm run build:artifact`
 (necesita `npm i -D esbuild`).
+
+## Lo nuevo (v0.3)
+
+- **Personajes:** 10 personajes ilustrados. El host les pone nombre en *Configuración → Personajes* y cada jugador elige el suyo desde el celular (no se repiten).
+- **Perritas** son monedas doradas con perrito; **Pemolares** son billetes verdes con el logo de Pemol Sport.
+- **Mapa Isla Pemol:** isla industrial con prisión, muelle de carga, terminal de cómputo, faro, **Escuela Piaget**, la disco **La Pérez** y el **Safari**.
+- **Tienda de objetos** (2 casillas): dado doble, dado triple, dado a elección, dado lento, escudo, campana, robo, pasa el shot y vaso de agua. Máximo 3 objetos; se usan antes de tirar.
+- **Modo shots** (se puede apagar): casilla roja = shot; último lugar de minijuego = shot; el ganador de un duelo le manda 2 al perdedor; el ganador de un minijuego de grupo reparte 1; casillas de **Ronda** y **Barra libre** en La Pérez; eventos de caos Brindis, Cascada y Elige a alguien. Sin límite por defecto (configurable).
+- **Escuela Piaget:** casillas de Examen (una pregunta CAP OR FACT: aciertas +5 Pemolares, fallas shot).
+- **Safari:** apuestas 5, 10 o 20 Pemolares con tu dado contra el de la casa. Si ganas, ganas lo apostado y te llevas una acompañante para el resto de la partida. (El minijuego definitivo del Safari está pendiente; esta apuesta es provisional.)
+- Dado negro con puntos brillantes y anillos de luz; letras Titan One y Fredoka; portada y lobby en azul rey con fondo animado.
 
 ## Reglas y economía
 

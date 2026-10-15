@@ -1,7 +1,10 @@
 // Controles privados del jugador. Se usan en el celular y en el modo local.
 // Los botones llevan data-action con JSON; bindActions() los envía.
 
-import { perritaSvg, pemolarSvg, beanSvg, esc } from './assets.js';
+import { perritaSvg, pemolarSvg, avatarHtml, shotSvg, itemIconSvg, esc } from './assets.js';
+
+const ITEM_NAMES = { double: 'Dado doble', triple: 'Dado triple', choice: 'Dado a elección', slow: 'Dado lento', shield: 'Escudo', bell: 'Campana', steal: 'Robo', pass: 'Pasa el shot', water: 'Vaso de agua' };
+const PASSIVE = new Set(['pass', 'water']);
 import { MG_VIEWS } from './minigame-views.js';
 
 const act = (a) => esc(JSON.stringify(a));
@@ -40,8 +43,22 @@ export function controlsHtml(state, you, { local = false } = {}) {
       return isMe ? '<div class="ph-wait mine"><b>¡Es tu turno!</b><p>Prepárate para tirar.</p></div>' : `<div class="ph-wait"><b>Turno de ${curName}</b></div>`;
     case 'DICE_ROLL':
       if (isMe && pend?.kind === 'roll') {
+        const dm = pend.dice;
+        const label = dm ? { double: 'Dado doble activo', triple: 'Dado triple activo', choice: `Vas a sacar ${dm.value}`, slow: 'Dado lento activo (1–3)' }[dm.item] : `Dado de ${state.config.diceMin} a ${state.config.diceMax}`;
+        const usable = p.items.filter((it) => !PASSIVE.has(it));
+        let inv = '';
+        if (usable.length) {
+          const btns = usable.map((it, i) => {
+            if (it === 'choice') return '';
+            const isDice = ['double', 'triple', 'slow'].includes(it);
+            return `<button class="btn ghost" data-action="${act({ type: 'USE_ITEM', item: it })}" ${isDice && dm ? 'disabled' : ''} data-k="${i}">${itemIconSvg(it, 24)}${ITEM_NAMES[it]}</button>`;
+          }).join('');
+          const choice = usable.includes('choice') && !dm
+            ? `<p class="ph-note">Dado a elección: toca el número</p><div class="choice-nums">${Array.from({ length: state.config.diceMax - state.config.diceMin + 1 }, (_, i) => state.config.diceMin + i).map((v) => `<button class="btn ghost" data-action="${act({ type: 'USE_ITEM', item: 'choice', value: v })}">${v}</button>`).join('')}</div>` : '';
+          inv = `<p class="ph-note">Usa un objeto antes de tirar</p><div class="inv">${btns}</div>${choice}`;
+        }
         return `<button class="btn huge roll" data-action="${act({ type: 'ROLL' })}"><span class="mini-die">?</span>TIRAR DADO</button>
-          <p class="ph-note">Dado de ${state.config.diceMin} a ${state.config.diceMax}${local ? ' · barra espaciadora' : ''}</p>`;
+          <p class="ph-note">${label}${local ? ' · barra espaciadora' : ''}</p>${inv}`;
       }
       return `<div class="ph-wait"><b>${curName} va a tirar</b></div>`;
     case 'MOVEMENT':
@@ -69,6 +86,38 @@ export function controlsHtml(state, you, { local = false } = {}) {
       }
       if (pend?.done === 'bought' && isMe) return `<div class="ph-wait mine"><b>¡+${pend.bought} Perrita${pend.bought > 1 ? 's' : ''}!</b></div>`;
       return `<div class="ph-wait"><b>${curName} está en la tienda</b></div>`;
+    case 'ITEM_SHOP':
+      if (isMe && pend?.kind === 'items' && !pend.done) {
+        const full = p.items.length >= pend.maxItems;
+        return `<p class="ph-title">Tienda de objetos</p>
+          <p class="ph-note">Tienes ${pemolarSvg(16)} <b>${p.pemolares}</b> · objetos ${p.items.length}/${pend.maxItems}</p>
+          <div class="item-btns">${pend.catalog.map((it) => `<button class="btn item-b" data-action="${act({ type: 'ITEM_BUY', item: it.id })}" ${full || p.pemolares < it.price ? 'disabled' : ''} title="${esc(it.desc)}">${itemIconSvg(it.id, 30)}<b>${esc(it.name)}</b><small>${pemolarSvg(14)} ${it.price}</small></button>`).join('')}</div>
+          <button class="btn ${pend.bought.length ? 'mint' : 'ghost'}" data-action="${act({ type: 'ITEM_DONE' })}">${pend.bought.length ? 'Listo' : 'No quiero nada'}</button>`;
+      }
+      return `<div class="ph-wait"><b>${esc(state.players[pend?.playerId]?.name || '')} está en la tienda de objetos</b></div>`;
+    case 'SAFARI':
+      if (pend?.kind === 'safari' && pend.playerId === me) {
+        if (pend.result) {
+          const r = pend.result;
+          return `<div class="ph-wait mine"><b>${r.win ? `¡Ganaste ${r.bet}!` : `Perdiste ${r.bet}`}</b><p>Tu dado ${r.you} contra ${r.house} de la casa${r.companion ? ' · ¡te llevas acompañante!' : ''}</p></div>`;
+        }
+        return `<p class="ph-title">Safari</p><p class="ph-note">¿Cuánto apuestas? Si tu dado sale más alto que el de la casa, ganas lo mismo${pend.hasCompanion ? '' : ' y te llevas una acompañante'}. Si no, lo pierdes.</p>
+          <div class="ph-buy">${pend.bets.map((b) => `<button class="btn buy" data-action="${act({ type: 'SAFARI_BET', bet: b })}">${pemolarSvg(22)} ${b}</button>`).join('')}</div>`;
+      }
+      return `<div class="ph-wait"><b>${esc(state.players[pend?.playerId]?.name || '')} entró al Safari</b></div>`;
+    case 'EXAM':
+      if (pend?.kind === 'exam' && pend.playerId === me) {
+        if (pend.result) return `<div class="ph-wait ${pend.result.ok ? 'mine' : ''}"><b>${pend.result.ok ? '¡Aprobado!' : 'Reprobado'}</b><p>Era ${pend.result.correct === 'fact' ? 'FACT' : 'CAP'}</p></div>`;
+        return `<p class="ph-title">Examen Piaget</p><div class="ph-q">${esc(pend.statement)}</div>
+          <div class="ph-two"><button class="btn big cap" data-action="${act({ type: 'EXAM_ANSWER', answer: 'cap' })}">CAP<small>mentira</small></button><button class="btn big fact" data-action="${act({ type: 'EXAM_ANSWER', answer: 'fact' })}">FACT<small>dato real</small></button></div>`;
+      }
+      return `<div class="ph-wait"><b>${esc(state.players[pend?.playerId]?.name || '')} presenta examen</b></div>`;
+    case 'SHOT_GIFT':
+      if (pend?.kind === 'gift' && pend.playerId === me && pend.remaining > 0) {
+        return `<p class="ph-title">Reparte ${pend.remaining} ${state.config.shotWord}${pend.remaining > 1 ? 's' : ''}</p><p class="ph-note">${esc(pend.reason || '')}</p>
+          <div class="ph-routes">${pend.options.map((id) => `<button class="btn ghost" data-action="${act({ type: 'GIFT_SHOT', to: id })}">${avatarHtml(state.players[id], 40)}${esc(state.players[id].name)}</button>`).join('')}</div>`;
+      }
+      return `<div class="ph-wait"><b>${esc(state.players[pend?.playerId]?.name || '')} reparte ${state.config.shotWord}s</b>${pend?.given?.includes(me) ? `<p>¡Te tocó uno!</p>` : ''}</div>`;
     case 'TILE_RESOLUTION': {
       const t = state.lastTile;
       if (t?.playerId === me) return `<div class="ph-wait mine tone-${t.tone}"><b>${esc(t.title)}</b><p>${esc(t.text)}</p></div>`;
@@ -88,7 +137,7 @@ export function controlsHtml(state, you, { local = false } = {}) {
     case 'MINIGAME_RESULTS': {
       const r = state.minigame.results.find((x) => x.playerId === me);
       if (!r) return `<div class="ph-wait"><b>Resultados en la tele</b></div>`;
-      return `<div class="ph-wait mine"><small>${esc(state.minigame.name)}</small><b>${r.place}º lugar</b><p>${pemolarSvg(20)} +${r.reward} Pemolares</p></div>`;
+      return `<div class="ph-wait mine"><small>${esc(state.minigame.name)}</small><b>${r.place}º lugar</b><p>${pemolarSvg(20)} +${r.reward} Pemolares${r.shots ? ` · ${shotSvg(20)} ×${r.shots}` : ''}</p></div>`;
     }
     case 'BOARD_END':
     case 'FINAL_BONUSES':
@@ -97,7 +146,7 @@ export function controlsHtml(state, you, { local = false } = {}) {
     case 'WINNER_REVEAL': {
       const r = state.final?.ranking?.find((x) => x.playerId === me);
       const won = state.final?.winners?.includes(me);
-      return `<div class="ph-wait ${won ? 'mine' : ''}">${beanSvg(p.color, p.hat, 80, { mood: won ? 'wow' : 'happy' })}<b>${won ? '¡GANASTE!' : r ? `${r.rank}º lugar` : ''}</b><p>${perritaSvg(22)} ${p.perritas} · ${pemolarSvg(20)} ${p.pemolares}</p></div>`;
+      return `<div class="ph-wait ${won ? 'mine' : ''}">${avatarHtml(p, 110, { crown: won })}<b>${won ? '¡GANASTE!' : r ? `${r.rank}º lugar` : ''}</b><p>${perritaSvg(22)} ${p.perritas} · ${pemolarSvg(20)} ${p.pemolares}${state.config.shotsEnabled ? ` · ${shotSvg(20)} ${p.shots}` : ''}</p></div>`;
     }
     default:
       return '';
@@ -108,7 +157,8 @@ export function controlsHtml(state, you, { local = false } = {}) {
 export function walletHtml(state, playerId) {
   const p = state.players[playerId];
   if (!p) return '';
-  return `<div class="ph-me" style="--pc:${p.color}">${beanSvg(p.color, p.hat, 46)}<b>${esc(p.name)}</b>
+  return `<div class="ph-me" style="--pc:${p.color}">${avatarHtml(p, 52)}<b>${esc(p.name)}</b>
     <span class="money perritas">${perritaSvg(26)}<em>${p.perritas}</em></span>
-    <span class="money pemolares">${pemolarSvg(24)}<em>${p.pemolares}</em></span>${p.shield ? '<span class="tag tag-shield">ESCUDO</span>' : ''}</div>`;
+    <span class="money pemolares">${pemolarSvg(24)}<em>${p.pemolares}</em></span>${state.config.shotsEnabled ? `<span class="ph-shots">${shotSvg(22)}${p.shots}</span>` : ''}${p.shield ? '<span class="tag tag-shield">ESCUDO</span>' : ''}
+    ${p.items.length ? `<span class="inv">${p.items.map((it) => `<span title="${ITEM_NAMES[it]}">${itemIconSvg(it, 22)}</span>`).join('')}</span>` : ''}</div>`;
 }

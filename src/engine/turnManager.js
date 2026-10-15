@@ -17,12 +17,14 @@ import { normalizeConfig } from './config.js';
 import { buildBoard } from './board.js';
 import { makeRng, seedFrom } from './rng.js';
 import { resolveTile } from './tileEffects.js';
-import { changePemolares, changePerritas, pushEvent, log } from './wallet.js';
+import { changePemolares, changePerritas, pushEvent, log, giveShot } from './wallet.js';
+import { ITEMS, itemCatalog } from './items.js';
+import { STATEMENTS } from './minigames/capOrFact.js';
 import { MINIGAMES, eligibleMinigames } from './minigames/index.js';
 
 export const PHASES = [
   'LOBBY', 'BOARD_INTRO', 'TURN_START', 'DICE_ROLL', 'MOVEMENT', 'ROUTE_CHOICE', 'SHOP',
-  'TILE_RESOLUTION', 'MINIGAME_INTRO', 'MINIGAME_PLAYING', 'MINIGAME_RESULTS',
+  'TILE_RESOLUTION', 'ITEM_SHOP', 'SAFARI', 'EXAM', 'SHOT_GIFT', 'MINIGAME_INTRO', 'MINIGAME_PLAYING', 'MINIGAME_RESULTS',
   'BOARD_END', 'FINAL_BONUSES', 'FINAL_LEADERBOARD', 'WINNER_REVEAL',
 ];
 
@@ -42,7 +44,16 @@ export const TIMING = {
   leaderboard: 6000,
   routeTimeout: 20000,
   shopTimeout: 15000,
+  itemShopTimeout: 25000,
+  safariResult: 3800,
+  examResult: 3000,
+  giftTimeout: 15000,
+  giftDone: 1500,
+  warp: 1400,
 };
+export const CHARACTERS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10'];
+export const COMPANIONS = ['f1', 'f2', 'f3'];
+export const SAFARI_BETS = [5, 10, 20];
 
 export const MAX_PLAYERS = 8;
 export const MAX_PER_VISIT = 3; // Perritas que se pueden comprar en una sola visita
@@ -97,6 +108,10 @@ function newPlayer(input, index, config) {
     name,
     color: PLAYER_COLORS.includes(input.color) ? input.color : PLAYER_COLORS[index % PLAYER_COLORS.length],
     hat: HATS.includes(input.hat) ? input.hat : HATS[index % HATS.length],
+    char: CHARACTERS.includes(input.char) ? input.char : CHARACTERS[index % CHARACTERS.length],
+    items: [],
+    shots: 0,
+    companion: null,
     isBot: !!input.isBot,
     connected: input.isBot ? true : input.connected !== false,
     pemolares: config.startingPemolares,
@@ -112,6 +127,8 @@ function newPlayer(input, index, config) {
       minusHits: 0,
       perritasBought: 0,
       pemolaresSpent: 0,
+      shotsGiven: 0,
+      itemsUsed: 0,
     },
   };
 }
@@ -131,6 +148,11 @@ function setDecisionTimer(s, ms, now) {
 }
 
 const currentPlayerId = (s) => s.order[s.turnIndex];
+
+export function characterName(config, charId) {
+  const i = CHARACTERS.indexOf(charId);
+  return (config.characterNames?.[i] || '').trim() || `Personaje ${i + 1}`;
+}
 
 function rngOf(s) {
   return makeRng(s);
@@ -168,20 +190,30 @@ function beginTurn(s, now) {
   s.pending = null;
   s.move = null;
   s.lastTile = null;
+  s.afterTile = null;
   setTimer(s, TIMING.turnStart, 'turn-start', now);
 }
 
 function openRoll(s, now) {
   s.phase = 'DICE_ROLL';
   const pid = currentPlayerId(s);
-  s.pending = { kind: 'roll', playerId: pid, token: `r${s.seq}` };
+  s.pending = { kind: 'roll', playerId: pid, token: `r${s.seq}`, dice: null, used: [] };
   setDecisionTimer(s, s.config.turnTimeoutSec * 1000, now);
 }
 
 function doRoll(s, now) {
   const pid = currentPlayerId(s);
-  const value = rngOf(s).int(s.config.diceMin, s.config.diceMax);
-  s.lastRoll = { playerId: pid, value, id: s.seq };
+  const rng = rngOf(s);
+  const mode = s.pending?.dice || null;
+  const d = () => rng.int(s.config.diceMin, s.config.diceMax);
+  let dice;
+  if (mode?.item === 'double') dice = [d(), d()];
+  else if (mode?.item === 'triple') dice = [d(), d(), d()];
+  else if (mode?.item === 'choice') dice = [mode.value];
+  else if (mode?.item === 'slow') dice = [rng.int(1, 3)];
+  else dice = [d()];
+  const value = dice.reduce((a, b) => a + b, 0);
+  s.lastRoll = { playerId: pid, value, dice, mode: mode?.item || null, id: s.seq };
   s.pending = null;
   s.move = { playerId: pid, stepsLeft: value, total: value, forced: null };
   log(s, `${s.players[pid].name} sacó ${value}`);
@@ -217,13 +249,14 @@ function walk(s, now, delay = 0) {
     if (t.type === 'start' && s.config.passStartBonus) {
       changePemolares(s, p.id, s.config.passStartBonus, 'Pasaste por la salida');
     }
-    if (t.type === 'shop' && m.stepsLeft > 0) {
-      m.stop = 'shop';
+    if ((t.type === 'shop' || t.type === 'itemshop') && m.stepsLeft > 0) {
+      m.stop = t.type;
       break;
     }
   }
   if (!m.stop && m.stepsLeft === 0) {
-    m.stop = s.board.tiles[p.tileId].type === 'shop' ? 'shop' : 'land';
+    const ty = s.board.tiles[p.tileId].type;
+    m.stop = ty === 'shop' || ty === 'itemshop' ? ty : 'land';
   }
   s.animSeq += 1;
   s.anim = { id: s.animSeq, playerId: p.id, path, delay, stepMs: TIMING.step };
@@ -263,7 +296,190 @@ function afterMovement(s, now) {
     setDecisionTimer(s, Math.min(TIMING.shopTimeout, s.config.turnTimeoutSec * 1000 || TIMING.shopTimeout), now);
     return;
   }
+  if (m.stop === 'itemshop') {
+    s.phase = 'ITEM_SHOP';
+    s.pending = {
+      kind: 'items',
+      playerId: p.id,
+      token: `i${s.seq}`,
+      catalog: itemCatalog(s.config),
+      maxItems: s.config.maxItems,
+      passing: m.stepsLeft > 0,
+      bought: [],
+      done: null,
+    };
+    setDecisionTimer(s, Math.min(TIMING.itemShopTimeout, s.config.turnTimeoutSec * 1000 || TIMING.itemShopTimeout), now);
+    return;
+  }
+  const landType = s.board.tiles[p.tileId].type;
+  if (landType === 'safari') return openSafari(s, now);
+  if (landType === 'exam') return openExam(s, now);
   resolveLanding(s, now);
+}
+
+// ---------------------------------------------------------------------------
+// Safari, Examen y regalos de shots
+// ---------------------------------------------------------------------------
+
+function openSafari(s, now) {
+  const p = s.players[s.move.playerId];
+  const bets = SAFARI_BETS.filter((b) => b <= p.pemolares);
+  s.lastTile = null;
+  if (!bets.length) {
+    s.phase = 'TILE_RESOLUTION';
+    s.pending = null;
+    s.lastTile = { playerId: p.id, tileId: p.tileId, tileType: 'safari', title: 'Safari cerrado', text: `Necesitas al menos ${SAFARI_BETS[0]} Pemolares para apostar.`, tone: 'neutral' };
+    return setTimer(s, TIMING.tileResult, 'tile', now);
+  }
+  s.phase = 'SAFARI';
+  s.pending = { kind: 'safari', playerId: p.id, token: `f${s.seq}`, bets, result: null, hasCompanion: !!p.companion };
+  setDecisionTimer(s, Math.min(20000, s.config.turnTimeoutSec * 1000 || 20000), now);
+}
+
+function playSafari(s, bet, now) {
+  const pend = s.pending;
+  const p = s.players[pend.playerId];
+  const rng = rngOf(s);
+  const you = rng.int(1, 6);
+  const house = rng.int(1, 6);
+  const win = you > house;
+  let companion = null;
+  if (win) {
+    changePemolares(s, p.id, bet, 'Ganaste en el Safari');
+    if (!p.companion) {
+      p.companion = rng.pick(COMPANIONS);
+      companion = p.companion;
+      pushEvent(s, { type: 'companion', playerId: p.id, companion });
+    }
+  } else {
+    changePemolares(s, p.id, -bet, 'Perdiste en el Safari');
+  }
+  pend.result = { bet, you, house, win, companion };
+  log(s, `${p.name} ${win ? 'ganó' : 'perdió'} ${bet} Pemolares en el Safari${companion ? ' y llega acompañado' : ''}`);
+  setTimer(s, TIMING.safariResult, 'safari-done', now);
+}
+
+function openExam(s, now) {
+  const p = s.players[s.move.playerId];
+  const rng = rngOf(s);
+  const i = rng.int(0, STATEMENTS.length - 1);
+  s.phase = 'EXAM';
+  s.lastTile = null;
+  s.secret = { examAnswer: STATEMENTS[i][1] };
+  s.pending = { kind: 'exam', playerId: p.id, token: `e${s.seq}`, statement: STATEMENTS[i][0], result: null };
+  setDecisionTimer(s, 12000, now);
+}
+
+function answerExam(s, answer, now) {
+  const pend = s.pending;
+  const p = s.players[pend.playerId];
+  const correct = s.secret?.examAnswer;
+  const ok = answer === correct;
+  if (ok) changePemolares(s, p.id, 5, 'Examen aprobado');
+  else if (s.config.shotsEnabled) giveShot(s, p.id, 1, 'Reprobó el examen', rngOf(s));
+  else changePemolares(s, p.id, -3, 'Examen reprobado');
+  pend.result = { answer, correct, ok };
+  s.secret = null;
+  setTimer(s, TIMING.examResult, 'exam-done', now);
+}
+
+/** El jugador `giver` reparte `count` shots, uno por uno. */
+function startGift(s, giver, count, reason, then, now) {
+  if (!s.config.shotsEnabled || count <= 0 || s.order.length < 2) return continueAfter(s, then, now);
+  s.phase = 'SHOT_GIFT';
+  s.pending = { kind: 'gift', playerId: giver, token: `g${s.seq}`, remaining: count, total: count, reason, given: [], options: s.order.filter((id) => id !== giver), then };
+  setDecisionTimer(s, TIMING.giftTimeout, now);
+}
+
+function giftShot(s, to, now) {
+  const pend = s.pending;
+  const giver = s.players[pend.playerId];
+  giver.stats.shotsGiven += 1;
+  giveShot(s, to, 1, `Se lo mandó ${giver.name}`, rngOf(s));
+  pend.given.push(to);
+  pend.remaining -= 1;
+  pend.token = `g${s.seq}`;
+  if (pend.remaining <= 0) setTimer(s, TIMING.giftDone, 'gift-done', now);
+  else setDecisionTimer(s, TIMING.giftTimeout, now);
+}
+
+function continueAfter(s, then, now) {
+  if (then === 'minigame') s.minigame = null;
+  return afterTurn(s, now);
+}
+
+function nearestShop(s, fromId) {
+  const seen = new Set([fromId]);
+  let frontier = [fromId];
+  while (frontier.length) {
+    const next = [];
+    for (const id of frontier) {
+      for (const n of s.board.tiles[id].next) {
+        if (seen.has(n)) continue;
+        if (s.board.tiles[n].type === 'shop') return n;
+        seen.add(n);
+        next.push(n);
+      }
+    }
+    frontier = next;
+  }
+  return null;
+}
+
+function useItem(s, p, itemId, value, now) {
+  const idx = p.items.indexOf(itemId);
+  const def = ITEMS[itemId];
+  if (idx < 0 || !def) return 'No tienes ese objeto';
+  if (def.kind === 'passive') return 'Ese objeto se activa solo';
+  const pend = s.pending;
+  if (def.kind === 'dice') {
+    if (pend.dice) return 'Ya usaste un dado especial este turno';
+    let v = null;
+    if (itemId === 'choice') {
+      v = Math.round(Number(value));
+      if (!(v >= s.config.diceMin && v <= s.config.diceMax)) return `Elige un número de ${s.config.diceMin} a ${s.config.diceMax}`;
+    }
+    pend.dice = { item: itemId, value: v };
+  } else if (itemId === 'shield') {
+    if (p.shield) return 'Ya tienes un escudo activo';
+    p.shield = true;
+  } else if (itemId === 'steal') {
+    const victims = s.order.filter((id) => id !== p.id && s.players[id].items.length);
+    if (!victims.length) return 'Nadie tiene objetos para robar';
+    const rng = rngOf(s);
+    const v = s.players[rng.pick(victims)];
+    const k = rng.int(0, v.items.length - 1);
+    const stolen = v.items.splice(k, 1)[0];
+    p.items.splice(idx, 1);
+    p.items.push(stolen);
+    p.stats.itemsUsed += 1;
+    pend.used.push(itemId);
+    pushEvent(s, { type: 'item', playerId: p.id, item: itemId, target: v.id, stolen });
+    log(s, `${p.name} le robó ${ITEMS[stolen].name} a ${v.name}`);
+    return null;
+  } else if (itemId === 'bell') {
+    const shop = nearestShop(s, p.tileId);
+    if (!shop) return 'No hay tienda de Perritas en el camino';
+    p.items.splice(idx, 1);
+    p.stats.itemsUsed += 1;
+    pushEvent(s, { type: 'item', playerId: p.id, item: itemId });
+    log(s, `${p.name} tocó la Campana`);
+    p.tileId = shop;
+    s.pending = null;
+    s.lastRoll = null;
+    s.move = { playerId: p.id, stepsLeft: 0, total: 0, forced: null, stop: 'shop' };
+    s.animSeq += 1;
+    s.anim = { id: s.animSeq, playerId: p.id, path: [shop], delay: 300, stepMs: TIMING.warp, warp: true };
+    s.phase = 'MOVEMENT';
+    setTimer(s, 300 + TIMING.warp + TIMING.afterMove, 'move', now);
+    return null;
+  }
+  p.items.splice(idx, 1);
+  p.stats.itemsUsed += 1;
+  pend.used.push(itemId);
+  pushEvent(s, { type: 'item', playerId: p.id, item: itemId });
+  log(s, `${p.name} usó ${def.name}`);
+  return null;
 }
 
 function resolveLanding(s, now) {
@@ -279,6 +495,7 @@ function resolveLanding(s, now) {
     s.anim = { id: s.animSeq, playerId: pid, path: [res.warpTo], delay: 900, stepMs: 900, warp: true };
   }
   if (res.minigame) s.queue.push({ source: 'tile', participants: res.minigame.participants });
+  s.afterTile = res.gift ? { gift: res.gift, reason: res.title } : null;
   setTimer(s, TIMING.tileResult + (res.warpTo ? 1200 : 0), 'tile', now);
 }
 
@@ -286,7 +503,8 @@ function finishShop(s, now) {
   const m = s.move;
   if (m.stepsLeft > 0) return walk(s, now, 0);
   // cayó justo en la tienda: no hay otro efecto, termina el turno
-  s.lastTile = { playerId: m.playerId, tileId: s.players[m.playerId].tileId, tileType: 'shop', title: 'Tienda de Perritas', text: '', tone: 'neutral' };
+  const ty = s.board.tiles[s.players[m.playerId].tileId].type;
+  s.lastTile = { playerId: m.playerId, tileId: s.players[m.playerId].tileId, tileType: ty, title: ty === 'itemshop' ? 'Tienda de objetos' : 'Tienda de Perritas', text: '', tone: 'neutral' };
   afterTurn(s, now);
 }
 
@@ -375,6 +593,25 @@ function finishMinigame(s, now) {
     changePemolares(s, r.playerId, r.reward, `${mg.name} · lugar ${r.place}`);
   }
   mg.results = results;
+  // Shots: en duelo el ganador le manda 2 al perdedor; en grupo, el último lugar toma 1
+  if (s.config.shotsEnabled) {
+    const rng = rngOf(s);
+    const worst = Math.max(...results.map((r) => r.place));
+    if (duel) {
+      const loser = results.find((r) => r.place === 2);
+      const winner = results.find((r) => r.place === 1);
+      if (loser && winner) {
+        s.players[winner.playerId].stats.shotsGiven += 2;
+        giveShot(s, loser.playerId, 2, `Perdió el duelo contra ${s.players[winner.playerId].name}`, rng);
+        loser.shots = 2;
+      }
+    } else if (worst > 1) {
+      for (const r of results.filter((x) => x.place === worst)) {
+        giveShot(s, r.playerId, 1, `Último lugar en ${mg.name}`, rng);
+        r.shots = 1;
+      }
+    }
+  }
   s.phase = 'MINIGAME_RESULTS';
   const winners = results.filter((r) => r.place === 1).map((r) => s.players[r.playerId].name);
   log(s, `${mg.name}: gana ${winners.join(' y ')}`);
@@ -452,6 +689,8 @@ function computeAwards(s) {
     pick('Turista Profesional', 'Más casillas recorridas', (p) => p.stats.tilesWalked),
     pick('Comprador Compulsivo', 'Más Pemolares gastados', (p) => p.stats.pemolaresSpent),
     pick('Cerebro Galáctico', 'Más puntos en minijuegos', (p) => p.stats.minigamePoints),
+    s.config.shotsEnabled ? pick('Hígado de Acero', `Más ${s.config.shotWord}s tomados`, (p) => p.shots) : null,
+    s.config.shotsEnabled ? pick('El Cantinero', `Más ${s.config.shotWord}s repartidos`, (p) => p.stats.shotsGiven) : null,
   ].filter(Boolean);
 }
 
@@ -482,6 +721,9 @@ export function dispatch(prev, action, ctx = {}) {
       if (used.has(p.color)) p.color = PLAYER_COLORS.find((c) => !used.has(c)) || p.color;
       const usedHats = new Set(s.order.map((x) => s.players[x].hat));
       if (usedHats.has(p.hat)) p.hat = HATS.find((h) => !usedHats.has(h)) || p.hat;
+      const usedChars = new Set(s.order.map((x) => s.players[x].char));
+      if (usedChars.has(p.char)) p.char = CHARACTERS.find((c) => !usedChars.has(c)) || p.char;
+      if (!String(action.player.name || '').trim()) p.name = characterName(s.config, p.char);
       s.players[id] = p;
       s.order.push(id);
       break;
@@ -493,6 +735,11 @@ export function dispatch(prev, action, ctx = {}) {
       if (action.name) p.name = String(action.name).trim().slice(0, 16) || p.name;
       if (PLAYER_COLORS.includes(action.color) && !s.order.some((x) => x !== p.id && s.players[x].color === action.color)) p.color = action.color;
       if (HATS.includes(action.hat)) p.hat = action.hat;
+      if (CHARACTERS.includes(action.char) && !s.order.some((x) => x !== p.id && s.players[x].char === action.char)) {
+        const oldDefault = characterName(s.config, p.char);
+        p.char = action.char;
+        if (!action.name && p.name === oldDefault) p.name = characterName(s.config, p.char);
+      }
       break;
     }
     case 'REMOVE_PLAYER': {
@@ -504,7 +751,12 @@ export function dispatch(prev, action, ctx = {}) {
     }
     case 'UPDATE_CONFIG': {
       if (s.phase !== 'LOBBY') return fail('Sólo antes de empezar');
+      const oldConfig = s.config;
       s.config = normalizeConfig({ ...s.config, ...action.config }, Object.keys(MINIGAMES));
+      for (const id of s.order) {
+        const pl = s.players[id];
+        if (pl.name === characterName(oldConfig, pl.char)) pl.name = characterName(s.config, pl.char);
+      }
       for (const id of s.order) {
         s.players[id].pemolares = s.config.startingPemolares;
         s.players[id].perritas = s.config.startingPerritas;
@@ -585,6 +837,67 @@ export function dispatch(prev, action, ctx = {}) {
       setTimer(s, pend.done === 'bought' ? TIMING.shopDone : 500, 'shop-done', now);
       break;
     }
+    case 'USE_ITEM': {
+      if (s.phase !== 'DICE_ROLL' || s.pending?.kind !== 'roll') return fail('Los objetos se usan antes de tirar');
+      if (action.playerId !== s.pending.playerId) return fail('No es tu turno');
+      const err = useItem(s, s.players[action.playerId], action.item, action.value, now);
+      if (err) return fail(err);
+      break;
+    }
+    case 'ITEM_BUY':
+    case 'ITEM_DONE': {
+      const pend = s.pending;
+      if (s.phase !== 'ITEM_SHOP' || pend?.kind !== 'items') return fail('La tienda de objetos está cerrada');
+      if (action.playerId !== pend.playerId) return fail('No es tu turno');
+      if (pend.done) return fail('Ya terminaste de comprar');
+      const p = s.players[pend.playerId];
+      if (type === 'ITEM_DONE') {
+        pend.done = 'done';
+        setTimer(s, pend.bought.length ? TIMING.shopDone : 500, 'shop-done', now);
+        break;
+      }
+      const item = pend.catalog.find((c) => c.id === action.item);
+      if (!item) return fail('Ese objeto no está a la venta');
+      if (p.items.length >= s.config.maxItems) return fail(`Sólo puedes cargar ${s.config.maxItems} objetos`);
+      if (p.pemolares < item.price) return fail('No te alcanzan los Pemolares');
+      p.pemolares -= item.price;
+      p.stats.pemolaresSpent += item.price;
+      p.items.push(item.id);
+      pend.bought.push(item.id);
+      pushEvent(s, { type: 'currency', currency: 'pemolares', playerId: p.id, delta: -item.price, reason: `Compró ${item.name}` });
+      pushEvent(s, { type: 'item-bought', playerId: p.id, item: item.id });
+      log(s, `${p.name} compró ${item.name}`);
+      if (p.items.length >= s.config.maxItems) { pend.done = 'full'; setTimer(s, TIMING.shopDone, 'shop-done', now); }
+      break;
+    }
+    case 'SAFARI_BET': {
+      const pend = s.pending;
+      if (s.phase !== 'SAFARI' || pend?.kind !== 'safari') return fail('No estás en el Safari');
+      if (action.playerId !== pend.playerId) return fail('No es tu turno');
+      if (pend.result) return fail('Ya apostaste');
+      const bet = Number(action.bet);
+      if (!pend.bets.includes(bet) || s.players[pend.playerId].pemolares < bet) return fail('Apuesta inválida');
+      playSafari(s, bet, now);
+      break;
+    }
+    case 'EXAM_ANSWER': {
+      const pend = s.pending;
+      if (s.phase !== 'EXAM' || pend?.kind !== 'exam') return fail('No hay examen');
+      if (action.playerId !== pend.playerId) return fail('No es tu examen');
+      if (pend.result) return fail('Ya respondiste');
+      if (action.answer !== 'cap' && action.answer !== 'fact') return fail('Respuesta inválida');
+      answerExam(s, action.answer, now);
+      break;
+    }
+    case 'GIFT_SHOT': {
+      const pend = s.pending;
+      if (s.phase !== 'SHOT_GIFT' || pend?.kind !== 'gift') return fail('No hay shots que repartir');
+      if (action.playerId !== pend.playerId) return fail('No te toca repartir');
+      if (pend.remaining <= 0) return fail('Ya repartiste todos');
+      if (!pend.options.includes(action.to)) return fail('Jugador inválido');
+      giftShot(s, action.to, now);
+      break;
+    }
     case 'MG_INPUT': {
       if (s.phase !== 'MINIGAME_PLAYING') return fail('No hay minijuego activo');
       const mg = s.minigame;
@@ -630,7 +943,26 @@ function onTick(s, reason, now) {
     case 'SHOP':
       if (!s.pending.done) s.pending.done = 'skipped';
       return finishShop(s, now);
+    case 'ITEM_SHOP':
+      if (!s.pending.done) s.pending.done = 'done';
+      return finishShop(s, now);
+    case 'SAFARI':
+      if (!s.pending.result) return playSafari(s, s.pending.bets[0], now);
+      return afterTurn(s, now);
+    case 'EXAM':
+      if (!s.pending.result) return answerExam(s, null, now);
+      return afterTurn(s, now);
+    case 'SHOT_GIFT': {
+      const pend = s.pending;
+      if (pend.remaining > 0) return giftShot(s, rngOf(s).pick(pend.options), now);
+      return continueAfter(s, pend.then, now);
+    }
     case 'TILE_RESOLUTION':
+      if (s.afterTile?.gift) {
+        const g = s.afterTile;
+        s.afterTile = null;
+        return startGift(s, s.move.playerId, g.gift, g.reason, 'turn', now);
+      }
       return afterTurn(s, now);
     case 'MINIGAME_INTRO': {
       const mg = s.minigame;
@@ -645,7 +977,14 @@ function onTick(s, reason, now) {
       if (game.isDone(s.minigame.data)) return finishMinigame(s, now);
       return applyMinigameTimer(s, now);
     }
-    case 'MINIGAME_RESULTS':
+    case 'MINIGAME_RESULTS': {
+      const mg = s.minigame;
+      if (s.config.shotsEnabled && mg.participants.length > 2) {
+        const winner = mg.results.find((r) => r.place === 1);
+        if (winner) return startGift(s, winner.playerId, 1, `Premio por ganar ${mg.name}`, 'minigame', now);
+      }
+    }
+    // falls through
       s.minigame = null;
       return afterTurn(s, now);
     case 'BOARD_END':
@@ -670,7 +1009,7 @@ function onTick(s, reason, now) {
 // ---------------------------------------------------------------------------
 
 export function publicState(s) {
-  const { rngState, pausedTimer, ...rest } = s;
+  const { rngState, pausedTimer, secret, ...rest } = s;
   const out = clone(rest);
   if (s.minigame) {
     const game = MINIGAMES[s.minigame.gameId];
@@ -699,7 +1038,32 @@ export function botActions(s, rand = Math.random) {
   const cur = s.players[currentPlayerId(s)];
   const pend = s.pending;
   if (pend && cur?.isBot && pend.playerId === cur.id) {
-    if (s.phase === 'DICE_ROLL') out.push({ key: pend.token, delayMs: 1100, action: { type: 'ROLL', playerId: cur.id } });
+    if (s.phase === 'DICE_ROLL') {
+      // usa un objeto de vez en cuando antes de tirar
+      const canSteal = s.order.some((id) => id !== cur.id && s.players[id].items.length);
+      const usable = cur.items.filter((it) => ITEMS[it].kind !== 'passive' && !(ITEMS[it].kind === 'dice' && pend.dice) && !pend.used.includes(it) && it !== 'bell'
+        && !(it === 'steal' && !canSteal) && !(it === 'shield' && cur.shield));
+      if (usable.length && rand() < 0.6) {
+        const it = usable[Math.floor(rand() * usable.length)];
+        out.push({ key: `${pend.token}:${it}:${pend.used.length}`, delayMs: 900, action: { type: 'USE_ITEM', playerId: cur.id, item: it, value: s.config.diceMax } });
+      } else if (cur.items.includes('bell') && !pend.dice && cur.pemolares >= s.config.perritaPrice && rand() < 0.5) {
+        out.push({ key: `${pend.token}:bell`, delayMs: 900, action: { type: 'USE_ITEM', playerId: cur.id, item: 'bell' } });
+      } else {
+        out.push({ key: `${pend.token}:roll`, delayMs: 1100, action: { type: 'ROLL', playerId: cur.id } });
+      }
+    }
+    if (s.phase === 'ITEM_SHOP' && !pend.done) {
+      const affordable = pend.catalog.filter((c) => c.price <= cur.pemolares - 8 && cur.items.length < s.config.maxItems);
+      const buy = affordable.length && pend.bought.length < 1 && rand() < 0.7;
+      const pick = buy ? affordable[Math.floor(rand() * affordable.length)] : null;
+      out.push({ key: `${pend.token}:${pend.bought.length}`, delayMs: 1600, action: pick ? { type: 'ITEM_BUY', playerId: cur.id, item: pick.id } : { type: 'ITEM_DONE', playerId: cur.id } });
+    }
+    if (s.phase === 'SAFARI' && !pend.result) {
+      out.push({ key: pend.token, delayMs: 1500, action: { type: 'SAFARI_BET', playerId: cur.id, bet: pend.bets[Math.floor(rand() * pend.bets.length)] } });
+    }
+    if (s.phase === 'EXAM' && !pend.result) {
+      out.push({ key: pend.token, delayMs: 2200, action: { type: 'EXAM_ANSWER', playerId: cur.id, answer: rand() < 0.5 ? 'cap' : 'fact' } });
+    }
     if (s.phase === 'ROUTE_CHOICE') {
       const opt = pend.options[Math.floor(rand() * pend.options.length)];
       out.push({ key: pend.token, delayMs: 1500, action: { type: 'CHOOSE_ROUTE', playerId: cur.id, to: opt.to } });
@@ -709,6 +1073,10 @@ export function botActions(s, rand = Math.random) {
       const qty = buy ? Math.max(1, pend.maxQty - (rand() < 0.3 ? 1 : 0)) : 0;
       out.push({ key: pend.token, delayMs: 1500, action: { type: buy ? 'SHOP_BUY' : 'SHOP_SKIP', playerId: cur.id, token: pend.token, qty } });
     }
+  }
+  if (s.phase === 'SHOT_GIFT' && pend && s.players[pend.playerId]?.isBot && pend.remaining > 0) {
+    const to = pend.options[Math.floor(rand() * pend.options.length)];
+    out.push({ key: `${pend.token}:${pend.remaining}`, delayMs: 1300, action: { type: 'GIFT_SHOT', playerId: pend.playerId, to } });
   }
   if (s.phase === 'MINIGAME_PLAYING' && s.minigame?.data) {
     const game = MINIGAMES[s.minigame.gameId];

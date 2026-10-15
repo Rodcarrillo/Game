@@ -1,7 +1,7 @@
 // Vistas de minijuegos para la TV (pública) y para el control (privada).
 // Cada vista devuelve HTML; los botones llevan data-action con la acción a enviar.
 
-import { beanSvg, esc } from './assets.js';
+import { avatarHtml, esc } from './assets.js';
 
 const mgAction = (payload) => esc(JSON.stringify({ type: 'MG_INPUT', payload }));
 
@@ -9,7 +9,7 @@ function avatarRow(state, ids, mark) {
   return `<div class="mg-row">${ids.map((id) => {
     const p = state.players[id];
     const m = mark(id);
-    return `<div class="mg-chip ${m.cls || ''}">${beanSvg(p.color, p.hat, 46, { mood: m.mood })}<span>${esc(p.name)}</span>${m.badge ? `<em>${m.badge}</em>` : ''}</div>`;
+    return `<div class="mg-chip ${m.cls || ''}">${avatarHtml(p, 58)}<span>${esc(p.name)}</span>${m.badge ? `<em>${m.badge}</em>` : ''}</div>`;
   }).join('')}</div>`;
 }
 
@@ -73,7 +73,7 @@ export const MG_VIEWS = {
           const pct = r.t == null ? 0 : Math.min(100, (r.t / (target + 3000)) * 100);
           const tpct = (target / (target + 3000)) * 100;
           return `<div class="si-row ${i === 0 ? 'win' : ''}">
-            <div class="si-who">${beanSvg(p.color, p.hat, 34)}<span>${esc(p.name)}</span></div>
+            <div class="si-who">${avatarHtml(p, 40)}<span>${esc(p.name)}</span></div>
             <div class="si-bar"><i style="width:${pct}%;background:${p.color}"></i><u style="left:${tpct}%"></u></div>
             <div class="si-val">${r.t == null ? '—' : `${(r.t / 1000).toFixed(2)} s`}<small>${r.t == null ? 'no se detuvo' : `${r.t >= target ? '+' : '−'}${(Math.abs(r.t - target) / 1000).toFixed(2)}`}</small></div>
           </div>`;

@@ -2,7 +2,7 @@
 /* global QRCode */
 import { Net } from './net.js';
 import { GameScreen } from './screen.js';
-import { lobbyPlayersHtml, howToHtml } from './lobby.js';
+import { lobbyPlayersHtml, howToHtml, bgFxHtml } from './lobby.js';
 import { settingsHtml, readSettings } from './settings.js';
 import { esc } from './assets.js';
 
@@ -71,9 +71,20 @@ function connect() {
 
 socket.on('connect', connect);
 socket.on('meta', (m) => { meta = m; code = m.code; screen.setCode(m.code); });
+let namesRestored = false;
 socket.on('state', (msg) => {
   state = msg.state;
   if (msg.host) isHost = true;
+  // recupera los nombres de personajes que el host usó la última vez
+  if (isHost && !namesRestored && state.phase === 'LOBBY') {
+    namesRestored = true;
+    try {
+      const saved = JSON.parse(localStorage.getItem('ma-char-names') || 'null');
+      if (Array.isArray(saved) && saved.some(Boolean) && !state.config.characterNames.some(Boolean)) {
+        hostAction({ type: 'UPDATE_CONFIG', config: { characterNames: saved } });
+      }
+    } catch { /* nada */ }
+  }
   screen.setServerNow(msg.serverNow);
   screen.render(state);
   renderLobby();
@@ -88,9 +99,9 @@ function renderLobby() {
   const key = JSON.stringify([state.order.map((id) => [id, state.players[id].name, state.players[id].color, state.players[id].hat]), url, isHost, state.config.perritaPrice]);
   if (key === lobbyKey) return;
   lobbyKey = key;
-  lobbyEl.innerHTML = `<div class="lobby-inner">
+  lobbyEl.innerHTML = `${bgFxHtml()}<div class="lobby-inner">
     <h1 class="title-big">MICHELSON'S <span>ARCADE</span></h1>
-    <p class="subtitle">Fiesta de tablero en Isla Gomita</p>
+    <p class="subtitle">El juego de mesa para la peda · Isla Pemol · +18</p>
     <div class="lobby-grid">
       <section class="panel join-panel">
         <p>Entra desde tu celular con el código</p>
@@ -117,7 +128,7 @@ function renderLobby() {
   if (qr && typeof QRCode !== 'undefined') {
     qr.style.cssText = 'display:flex;justify-content:center;margin:8px 0';
     // eslint-disable-next-line no-new
-    new QRCode(qr, { text: url, width: 180, height: 180, colorDark: '#2a1d5c', colorLight: '#ffffff' });
+    new QRCode(qr, { text: url, width: 180, height: 180, colorDark: '#1b2440', colorLight: '#ffffff' });
   }
 }
 
@@ -143,6 +154,10 @@ modal.addEventListener('change', () => {
   clearTimeout(cfgTimer);
   cfgTimer = setTimeout(() => {
     const form = modal.querySelector('form.settings');
-    if (form) hostAction({ type: 'UPDATE_CONFIG', config: readSettings(form, meta) });
+    if (form) {
+      const cfg = readSettings(form, meta);
+      try { localStorage.setItem('ma-char-names', JSON.stringify(cfg.characterNames)); } catch { /* nada */ }
+      hostAction({ type: 'UPDATE_CONFIG', config: cfg });
+    }
   }, 150);
 });

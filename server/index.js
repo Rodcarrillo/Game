@@ -25,6 +25,7 @@ const MIME = {
   '.png': 'image/png',
   '.jpg': 'image/jpeg',
   '.ico': 'image/x-icon',
+  '.webp': 'image/webp',
   '.webmanifest': 'application/manifest+json',
 };
 
@@ -97,13 +98,19 @@ attachWebSocket(server, '/ws', (conn) => {
       r.attach(socket, 'viewer');
       return { ok: true, code: r.code };
     },
-    'player:join': ({ code, name, color, hat } = {}) => {
+    'player:join': ({ code, name, color, hat, char } = {}) => {
       const r = rooms.get(code);
       if (!r) return { ok: false, error: 'No existe esa sala' };
-      const res = r.join({ name, color, hat });
+      const res = r.join({ name, color, hat, char });
       if (res.error) return { ok: false, error: res.error };
       r.attach(socket, 'player', res.playerId);
       return { ok: true, code: r.code, ...res };
+    },
+    'room:peek': ({ code } = {}) => {
+      const r = rooms.get(code);
+      if (!r) return { ok: false, error: 'No existe esa sala' };
+      const st = r.state;
+      return { ok: true, code: r.code, names: st.config.characterNames, taken: st.order.map((id) => st.players[id].char), phase: st.phase };
     },
     'player:resume': ({ code, token } = {}) => {
       const r = rooms.get(code);

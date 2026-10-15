@@ -5,11 +5,12 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
+  ITEMS, CHARACTERS,
   createGame, createRunner, publicState, privateView, isHostAction, listMinigames, DEFAULT_CONFIG,
   PLAYER_COLORS, HATS, MAX_PLAYERS,
 } from '../src/engine/index.js';
 
-const PLAYER_ACTIONS = new Set(['ROLL', 'CHOOSE_ROUTE', 'SHOP_BUY', 'SHOP_SKIP', 'MG_INPUT', 'UPDATE_PLAYER']);
+const PLAYER_ACTIONS = new Set(['ROLL', 'CHOOSE_ROUTE', 'SHOP_BUY', 'SHOP_SKIP', 'MG_INPUT', 'UPDATE_PLAYER', 'USE_ITEM', 'ITEM_BUY', 'ITEM_DONE', 'SAFARI_BET', 'EXAM_ANSWER', 'GIFT_SHOT']);
 const BOT_NAMES = ['Gomi', 'Chicloso', 'Mazapán', 'Tamarindo', 'Pulparindo', 'Gansito', 'Bubulubu', 'Duvalín'];
 const ROOM_TTL_MS = 8 * 60 * 60 * 1000;
 
@@ -35,7 +36,7 @@ export class RoomManager {
   }
 
   meta() {
-    return { minigames: listMinigames(), defaults: DEFAULT_CONFIG, colors: PLAYER_COLORS, hats: HATS, maxPlayers: MAX_PLAYERS };
+    return { minigames: listMinigames(), defaults: DEFAULT_CONFIG, colors: PLAYER_COLORS, hats: HATS, maxPlayers: MAX_PLAYERS, items: ITEMS, characters: CHARACTERS };
   }
 
   create(config) {
@@ -161,11 +162,11 @@ export class Room {
     }
   }
 
-  join({ name, color, hat }) {
+  join({ name, color, hat, char }) {
     const s = this.state;
     if (s.phase !== 'LOBBY') return { error: 'La partida ya empezó. Usa tu dispositivo original para reconectar.' };
     const playerId = newId();
-    const res = this.runner.dispatch({ type: 'ADD_PLAYER', player: { id: playerId, name, color, hat, isBot: false } });
+    const res = this.runner.dispatch({ type: 'ADD_PLAYER', player: { id: playerId, name, color, hat, char, isBot: false } });
     if (!res.ok) return { error: res.error };
     const t = token();
     this.playerTokens[t] = playerId;
@@ -182,9 +183,7 @@ export class Room {
   hostAction(action) {
     const s = this.state;
     if (action?.type === 'ADD_BOT') {
-      const used = new Set(s.order.map((id) => s.players[id].name));
-      const name = BOT_NAMES.find((n) => !used.has(n)) || `Bot ${s.order.length + 1}`;
-      return this.runner.dispatch({ type: 'ADD_PLAYER', player: { id: `bot-${newId()}`, name, isBot: true } });
+      return this.runner.dispatch({ type: 'ADD_PLAYER', player: { id: `bot-${newId()}`, name: '', isBot: true } });
     }
     if (action?.type === 'RESET') {
       // Nueva partida con los mismos jugadores y configuración.
@@ -193,7 +192,7 @@ export class Room {
       const fresh = createRunner({ state: st });
       for (const id of s.order) {
         const p = s.players[id];
-        fresh.dispatch({ type: 'ADD_PLAYER', player: { id, name: p.name, color: p.color, hat: p.hat, isBot: p.isBot, connected: p.connected } });
+        fresh.dispatch({ type: 'ADD_PLAYER', player: { id, name: p.name, color: p.color, hat: p.hat, char: p.char, isBot: p.isBot, connected: p.connected } });
       }
       st = fresh.getState();
       fresh.stop();

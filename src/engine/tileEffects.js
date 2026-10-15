@@ -4,7 +4,7 @@
 // resumen { title, text, tone } que la TV muestra. Puede devolver
 // `minigame: { participants }` para lanzar un minijuego al terminar.
 
-import { changePemolares, changePerritas, transferPemolares, log } from './wallet.js';
+import { changePemolares, changePerritas, transferPemolares, giveShot, log } from './wallet.js';
 
 const registry = new Map();
 
@@ -55,8 +55,10 @@ registerTileType('pemolar_minus', {
     const n = rng.int(s.config.pemolarMinusMin, s.config.pemolarMinusMax);
     const hadShield = p.shield;
     const lost = changePemolares(s, p.id, -n, 'Casilla roja', { blockable: true });
-    if (hadShield && !lost) return { title: '¡Escudo!', text: 'Tu burbuja bloqueó la pérdida.', tone: 'good' };
-    return { title: `${lost} Pemolares`, text: lost ? 'Casilla roja' : 'No tenías nada que perder', tone: 'bad' };
+    const shot = giveShot(s, p.id, 1, 'Casilla roja', rng);
+    const extra = shot ? ` y ¡${s.config.shotWord}!` : '';
+    if (hadShield && !lost) return { title: '¡Escudo!', text: `Tu escudo bloqueó la pérdida${extra}`, tone: shot ? 'bad' : 'good' };
+    return { title: `${lost} Pemolares${shot ? ` + ${s.config.shotWord}` : ''}`, text: lost ? `Casilla roja${extra}` : `No tenías nada que perder${extra}`, tone: 'bad' };
   },
 });
 
@@ -104,6 +106,41 @@ registerTileType('minigame', {
       tone: 'great',
       minigame: { participants },
     };
+  },
+});
+
+registerTileType('itemshop', {
+  label: 'Tienda de objetos',
+  description: 'Compra dados especiales y otros objetos al pasar o caer.',
+  resolve: () => ({ title: 'Tienda de objetos', text: '', tone: 'neutral' }),
+});
+
+// Safari y Examen abren su propia fase en turnManager.
+registerTileType('safari', { label: 'Safari', description: 'Apuesta Pemolares; si ganas, te llevas una acompañante.', resolve: () => null });
+registerTileType('exam', { label: 'Examen', description: 'Una pregunta de CAP OR FACT para ti solo.', resolve: () => null });
+
+registerTileType('ronda', {
+  label: 'Ronda',
+  description: 'Todos toman.',
+  resolve(s, p, _t, { rng }) {
+    if (!s.config.shotsEnabled) {
+      for (const id of s.order) changePemolares(s, id, 2, 'Ronda en La Pérez');
+      return { title: 'Ronda en La Pérez', text: 'Todos ganan 2 Pemolares.', tone: 'good' };
+    }
+    for (const id of s.order) giveShot(s, id, 1, 'Ronda en La Pérez', rng);
+    return { title: '¡RONDA!', text: `Todos se toman un ${s.config.shotWord}.`, tone: 'great' };
+  },
+});
+
+registerTileType('barra', {
+  label: 'Barra libre',
+  description: 'Reparte 3 shots a quien quieras.',
+  resolve(s, p) {
+    if (!s.config.shotsEnabled) {
+      changePemolares(s, p.id, 6, 'Barra libre');
+      return { title: 'Barra libre', text: '+6 Pemolares', tone: 'good' };
+    }
+    return { title: '¡Barra libre!', text: `${p.name} reparte 3 ${s.config.shotWord}s.`, tone: 'great', gift: 3 };
   },
 });
 
@@ -156,10 +193,32 @@ export const CHAOS_EVENTS = [
   {
     id: 'canon', weight: 1.5, strong: true,
     run(s, p, { rng, board }) {
-      const options = board.order.filter((id) => !['shop', 'start'].includes(board.tiles[id].type) && id !== p.tileId);
+      const options = board.order.filter((id) => !['shop', 'itemshop', 'start', 'safari', 'exam', 'barra'].includes(board.tiles[id].type) && id !== p.tileId);
       const to = rng.pick(options);
       p.tileId = to;
       return { title: 'Cañón de confeti', text: `¡Saliste volando a ${board.regions[board.tiles[to].region].name}!`, tone: 'neutral', warpTo: to };
+    },
+  },
+  {
+    id: 'brindis', weight: 2, strong: false, needsShots: true,
+    run(s, p, { rng }) {
+      for (const id of s.order) giveShot(s, id, 1, 'Brindis', rng);
+      return { title: '¡Salud!', text: `Brindis: todos se toman un ${s.config.shotWord}.`, tone: 'great' };
+    },
+  },
+  {
+    id: 'cascada', weight: 1.5, strong: true, needsShots: true,
+    run(s, p, { rng }) {
+      const start = s.order.indexOf(p.id);
+      const ordered = s.order.slice(start).concat(s.order.slice(0, start));
+      for (const id of ordered) giveShot(s, id, 1, 'Cascada', rng);
+      return { title: 'Cascada', text: `Empezando por ${p.name}, todos toman en orden.`, tone: 'great' };
+    },
+  },
+  {
+    id: 'elige', weight: 2, strong: true, needsShots: true,
+    run(s, p) {
+      return { title: 'Elige a alguien', text: `${p.name} manda un ${s.config.shotWord}.`, tone: 'great', gift: 1 };
     },
   },
   {
@@ -183,7 +242,7 @@ registerTileType('chaos', {
     p.stats.chaosHits += 1;
     const f = s.config.chaosFrequency;
     if (f <= 0) return { title: 'Calma', text: 'El caos está dormido.', tone: 'neutral' };
-    const pool = CHAOS_EVENTS.filter((e) => !e.needsMinigame || api.hasMinigames()).map((e) => ({
+    const pool = CHAOS_EVENTS.filter((e) => (!e.needsMinigame || api.hasMinigames()) && (!e.needsShots || s.config.shotsEnabled)).map((e) => ({
       ...e,
       weight: e.strong ? e.weight * f : e.weight,
     }));

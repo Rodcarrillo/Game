@@ -1,7 +1,7 @@
 // BoardHUD + PlayerLeaderboard: tarjetas persistentes con Perritas y Pemolares
 // de cada jugador; animan los saldos cuando cambian.
 
-import { beanSvg, perritaSvg, pemolarSvg, esc } from './assets.js';
+import { avatarHtml, perritaSvg, pemolarSvg, shotSvg, itemIconSvg, esc } from './assets.js';
 
 export function rankPlayers(state) {
   const tb = state.config?.pemolaresTiebreak !== false;
@@ -34,18 +34,19 @@ export class PlayerLeaderboard {
       card.style.setProperty('--pc', p.color);
       card.innerHTML = `
         <div class="pcard-rank"></div>
-        <div class="pcard-avatar">${beanSvg(p.color, p.hat, 40)}</div>
+        <div class="pcard-avatar">${avatarHtml(p, 50)}</div>
         <div class="pcard-main">
           <div class="pcard-name">${esc(p.name)}<span class="pcard-tags"></span></div>
           <div class="pcard-money">
             <span class="money perritas">${perritaSvg(24)}<b data-k="perritas">0</b></span>
-            <span class="money pemolares">${pemolarSvg(22)}<b data-k="pemolares">0</b></span>
+            <span class="money pemolares">${pemolarSvg(20)}<b data-k="pemolares">0</b></span>
+            <span class="money shots" ${state.config.shotsEnabled ? '' : 'hidden'}>${shotSvg(20)}<b data-k="shots">0</b></span>
           </div>
         </div>
         <div class="pcard-pop"></div>`;
       this.root.appendChild(card);
       this.cards.set(id, card);
-      this.shown[id] = { perritas: p.perritas, pemolares: p.pemolares };
+      this.shown[id] = { perritas: p.perritas, pemolares: p.pemolares, shots: p.shots || 0 };
     }
     for (const [id, card] of this.cards) {
       if (!state.players[id]) { card.remove(); this.cards.delete(id); }
@@ -60,6 +61,8 @@ export class PlayerLeaderboard {
       if (key !== prev) rank = i + 1;
       prev = key;
       card.style.order = String(i);
+      const look = `${p.char}|${p.companion || ''}`;
+      if (card.dataset.look !== look) { card.dataset.look = look; card.querySelector('.pcard-avatar').innerHTML = avatarHtml(p, 50); }
       card.querySelector('.pcard-rank').textContent = rank;
       card.querySelector('.pcard-rank').dataset.rank = rank;
       card.classList.toggle('is-turn', id === state.currentPlayerId && !state.phase.startsWith('MINIGAME') && !state.final);
@@ -67,11 +70,12 @@ export class PlayerLeaderboard {
       const tags = [];
       if (p.shield) tags.push('<span class="tag tag-shield" title="Escudo activo">ESCUDO</span>');
       if (p.isBot) tags.push('<span class="tag">BOT</span>');
+      for (const it of p.items || []) tags.push(`<span class="tag-item">${itemIconSvg(it, 18)}</span>`);
       if (!p.connected) tags.push('<span class="tag tag-off">SIN CONEXIÓN</span>');
       const tagHtml = tags.join('');
       const tagEl = card.querySelector('.pcard-tags');
       if (tagEl.innerHTML !== tagHtml) tagEl.innerHTML = tagHtml;
-      for (const k of ['perritas', 'pemolares']) {
+      for (const k of ['perritas', 'pemolares', 'shots']) {
         if (this.shown[id][k] !== p[k]) this.tween(card, id, k, this.shown[id][k], p[k]);
         else card.querySelector(`[data-k="${k}"]`).textContent = p[k];
       }

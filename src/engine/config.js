@@ -38,6 +38,18 @@ export const DEFAULT_CONFIG = {
 
   // Tiempos (segundos). 0 = sin límite.
   turnTimeoutSec: 30,
+
+  // Tienda de objetos
+  maxItems: 3,
+  itemPrices: { double: 10, triple: 18, choice: 15, slow: 5, shield: 8, bell: 30, steal: 12, pass: 10, water: 6 },
+
+  // Modo fiesta (shots)
+  shotsEnabled: true,
+  shotWord: 'shot', // shot | trago
+  shotLimit: 0, // 0 = sin límite
+
+  // Nombres que el host da a los 10 personajes ('' = "Personaje N")
+  characterNames: ['', '', '', '', '', '', '', '', '', ''],
 };
 
 const clampInt = (v, lo, hi, d) => {
@@ -95,5 +107,13 @@ export function normalizeConfig(input = {}, knownMinigames = []) {
   };
   out.pemolaresTiebreak = c.pemolaresTiebreak !== false && c.pemolaresTiebreak !== 'false';
   out.turnTimeoutSec = clampInt(c.turnTimeoutSec, 0, 300, d.turnTimeoutSec);
+  out.maxItems = clampInt(c.maxItems, 1, 6, d.maxItems);
+  const ip = { ...d.itemPrices, ...(c.itemPrices || {}) };
+  out.itemPrices = Object.fromEntries(Object.keys(d.itemPrices).map((k) => [k, clampInt(ip[k], 0, 200, d.itemPrices[k])]));
+  out.shotsEnabled = c.shotsEnabled !== false && c.shotsEnabled !== 'false';
+  out.shotWord = oneOf(c.shotWord, ['shot', 'trago'], d.shotWord);
+  out.shotLimit = clampInt(c.shotLimit, 0, 99, d.shotLimit);
+  const names = Array.isArray(c.characterNames) ? c.characterNames : d.characterNames;
+  out.characterNames = Array.from({ length: 10 }, (_, i) => String(names[i] ?? '').trim().slice(0, 16));
   return out;
 }

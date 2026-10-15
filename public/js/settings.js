@@ -1,6 +1,8 @@
 // Panel de configuración del host. Envía UPDATE_CONFIG; el servidor valida.
 
-import { esc } from './assets.js';
+import { esc, CHAR_SRC, itemIconSvg } from './assets.js';
+
+const ITEM_LABELS = { double: 'Dado doble', triple: 'Dado triple', choice: 'Dado a elección', slow: 'Dado lento', shield: 'Escudo', bell: 'Campana', steal: 'Robo', pass: 'Pasa el shot', water: 'Vaso de agua' };
 
 const num = (id, label, v, min, max, hint = '') => `<label class="field" for="cfg-${id}"><span>${label}${hint ? `<small>${hint}</small>` : ''}</span>
   <input id="cfg-${id}" name="${id}" type="number" inputmode="numeric" min="${min}" max="${max}" value="${v}"></label>`;
@@ -10,6 +12,19 @@ const chk = (id, label, v) => `<label class="check" for="cfg-${id}"><input id="c
 export function settingsHtml(c, meta) {
   const games = meta?.minigames || [];
   return `<form class="settings" id="settings-form" autocomplete="off">
+    <fieldset class="wide"><legend>Personajes</legend>
+      <p class="muted" style="margin:0">Ponle nombre a cada personaje. Los jugadores lo verán al elegir.</p>
+      <div class="chars-grid">${Array.from({ length: 10 }, (_, i) => `<label class="char-name-field" for="cfg-char-${i}"><img src="${CHAR_SRC[`c${i + 1}`]}" alt=""><input id="cfg-char-${i}" name="char-${i}" maxlength="16" placeholder="Personaje ${i + 1}" value="${esc(c.characterNames?.[i] || '')}"></label>`).join('')}</div>
+    </fieldset>
+    <fieldset><legend>Modo shots</legend>
+      ${chk('shotsEnabled', 'Jugar con shots (+18)', c.shotsEnabled)}
+      ${sel('shotWord', 'Se toma', c.shotWord, [['shot', 'Shot'], ['trago', 'Trago']])}
+      ${num('shotLimit', 'Límite por jugador', c.shotLimit, 0, 99, '0 = sin límite')}
+    </fieldset>
+    <fieldset><legend>Tienda de objetos</legend>
+      ${num('maxItems', 'Objetos por jugador', c.maxItems, 1, 6)}
+      ${Object.keys(c.itemPrices).map((k) => num(`ip-${k}`, `${itemIconSvg(k, 18)} ${ITEM_LABELS[k] || k}`, c.itemPrices[k], 0, 200)).join('')}
+    </fieldset>
     <fieldset><legend>Partida</legend>
       ${num('totalRounds', 'Rondas', c.totalRounds, 1, 50)}
       ${sel('dice', 'Dado', `${c.diceMin}-${c.diceMax}`, [['1-6', '1 a 6'], ['1-8', '1 a 8'], ['1-10', '1 a 10']])}
@@ -75,6 +90,12 @@ export function readSettings(form, meta) {
       chaosMagnet: f.get('eb-chaosMagnet') === 'on',
     },
     pemolaresTiebreak: f.get('pemolaresTiebreak') === 'on',
+    characterNames: Array.from({ length: 10 }, (_, i) => String(f.get(`char-${i}`) || '').trim()),
+    shotsEnabled: f.get('shotsEnabled') === 'on',
+    shotWord: f.get('shotWord'),
+    shotLimit: n('shotLimit'),
+    maxItems: n('maxItems'),
+    itemPrices: Object.fromEntries(['double', 'triple', 'choice', 'slow', 'shield', 'bell', 'steal', 'pass', 'water'].map((k) => [k, n(`ip-${k}`)])),
   };
 }
 

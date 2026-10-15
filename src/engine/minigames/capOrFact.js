@@ -1,7 +1,7 @@
 // CAP OR FACT — ¿mentira (cap) o dato real (fact)? Todos responden a la vez.
 // Correcto = 100 pts + bono de rapidez (30/20/10 para los tres primeros correctos).
 
-const STATEMENTS = [
+export const STATEMENTS = [
   ['Los pulpos tienen tres corazones.', 'fact'],
   ['La miel puede durar miles de años sin echarse a perder.', 'fact'],
   ['Un día en Venus dura más que un año en Venus.', 'fact'],
