@@ -2,7 +2,7 @@
 // Dibuja el tablero (isla industrial "Isla Pemol") a partir de los datos del
 // servidor. No contiene reglas.
 
-import { TILE_STYLE, tileGlyph, esc, CHAR_SRC, companionInner, DOG_PATH } from './assets.js';
+import { TILE_STYLE, tileGlyph, esc, CHAR_SRC, companionInner, DOG_PATH, PEREZ_LOGO, PIAGET_LOGO } from './assets.js';
 import { CHAR_RIG } from './rig.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -12,7 +12,7 @@ const INK = '#1b2440';
 const REGION_TINT = {
   muelle: '#9aa3a8',
   bodegas: '#a89a7c',
-  safari: '#9fae5a',
+  safari: '#8d8a96',
   terminal: '#8c97a3',
   faro: '#b9ab8a',
   escuela: '#b5c48a',
@@ -21,7 +21,7 @@ const REGION_TINT = {
 const REGION_DECOR = {
   muelle: ['containers', 'crates', 'barrels'],
   bodegas: ['crates', 'containers', 'barrels', 'bush'],
-  safari: ['acacia', 'acacia', 'bush', 'rock'],
+  safari: ['palm', 'barrels', 'bush'],
   terminal: ['antenna', 'crates', 'rock'],
   faro: ['rock', 'rock', 'bush'],
   escuela: ['tree', 'tree', 'bush'],
@@ -153,24 +153,46 @@ function landmarks(ents = {}) {
     </g>`;
   const escuela = `${entrancePath('escuela', ents.escuela)}<g transform="translate(${at('escuela')})">
       <path d="M-120 34L0 -26 120 34 0 94z" fill="#c9b98a" stroke="${INK}" stroke-width="3"/>
-      <g transform="translate(-10 20)">${iso(170, 70, 50, { top: '#b84a3a', left: '#f1e6cf', right: '#d8cbae' })}${windows(6, -76, -30, 12, 6, '#7fb2ff')}</g>
-      <circle cx="-10" cy="-52" r="12" fill="#fff" stroke="${INK}" stroke-width="3"/><path d="M-10 -52v-7M-10 -52l5 3" stroke="${INK}" stroke-width="2.5" stroke-linecap="round"/>
-      <g transform="translate(-10 -78)"><rect x="-74" y="-16" width="148" height="28" rx="6" fill="#1f4fbf" stroke="${INK}" stroke-width="3"/><text y="5" text-anchor="middle" class="board-sign">ESCUELA PIAGET</text></g>
+      <g transform="translate(-10 20)">${iso(170, 70, 50, { top: '#2f5fd0', left: '#f4f1e8', right: '#dcd6c6' })}${windows(6, -76, -30, 12, 6, '#7fb2ff')}</g>
+      <g transform="translate(-10 -84)"><rect x="-82" y="-30" width="164" height="60" rx="8" fill="#ffffff" stroke="${INK}" stroke-width="3"/>
+        <image href="${PIAGET_LOGO}" x="-74" y="-27" width="148" height="56" preserveAspectRatio="xMidYMid meet"/></g>
+      <path d="M-70 -54v26M50 -54v26" stroke="#8a8f96" stroke-width="4"/>
       <g transform="translate(100 10)"><path d="M0 30V-50" stroke="#8a8f96" stroke-width="4"/><path d="M0 -50h30v18H0z" fill="#2ecc8f" stroke="${INK}" stroke-width="2.5"/></g>
     </g>`;
+  // La Pérez · Cervecería: fachada de ladrillo blanco con su logo
   const disco = `${entrancePath('disco', ents.disco)}<g transform="translate(${at('disco')})">
-      <path d="M-56 -30l-60-170M56 -30l70-160" stroke="url(#beam)" stroke-width="28" class="spot" opacity=".55"/>
-      <g transform="translate(0 30)">${iso(150, 80, 52, { top: '#2a2438', left: '#3d3550', right: '#2f2942' })}</g>
-      <g transform="translate(0 -40)"><rect x="-70" y="-20" width="140" height="34" rx="8" fill="#140f22" stroke="#ff4fd8" stroke-width="3"/><text y="7" text-anchor="middle" class="board-neon">LA PÉREZ</text></g>
-      <g fill="#6ff0ff" class="blink"><circle cx="-40" cy="20" r="3"/><circle cx="-20" cy="30" r="3"/><circle cx="30" cy="22" r="3"/></g>
-      <g transform="translate(-30 74)" fill="${INK}">${[0, 1, 2, 3].map((i) => `<ellipse cx="${i * 14}" cy="${i * 4}" rx="5" ry="9"/>`).join('')}</g>
+      <rect x="-92" y="-96" width="184" height="128" fill="url(#brick)" stroke="${INK}" stroke-width="4"/>
+      <rect x="-92" y="-104" width="184" height="12" fill="#3a2a1c" stroke="${INK}" stroke-width="3"/>
+      <image href="${PEREZ_LOGO}" x="-70" y="-90" width="140" height="81" preserveAspectRatio="xMidYMid meet"/>
+      <path d="M-86 -8q22 10 43 0t43 0 43 0 43 0" fill="none" stroke="#3a2a1c" stroke-width="1.5"/>
+      <g class="blink">${[-80, -58, -36, -14, 8, 30, 52, 74].map((x, i) => `<circle cx="${x}" cy="${-4 + (i % 2) * 3}" r="3" fill="#ffd36a"/>`).join('')}</g>
+      <rect x="-22" y="0" width="44" height="32" fill="#7a4a24" stroke="${INK}" stroke-width="3"/><path d="M0 0v32" stroke="${INK}" stroke-width="2"/>
+      <rect x="-80" y="2" width="44" height="22" rx="3" fill="#ffe7a8" stroke="${INK}" stroke-width="2.5"/><rect x="36" y="2" width="44" height="22" rx="3" fill="#ffe7a8" stroke="${INK}" stroke-width="2.5"/>
+      <g transform="translate(-112 22)"><rect x="-12" y="-20" width="24" height="28" rx="7" fill="#9a6b3a" stroke="${INK}" stroke-width="2.5"/><path d="M-12 -12h24M-12 0h24" stroke="${INK}" stroke-width="2"/></g>
+      <g transform="translate(112 18)"><rect x="-10" y="-18" width="20" height="26" rx="3" fill="#ffb400" stroke="${INK}" stroke-width="2.5"/><path d="M10 -12h6v14h-6" fill="none" stroke="${INK}" stroke-width="2.5"/><rect x="-10" y="-22" width="20" height="6" rx="3" fill="#fff" stroke="${INK}" stroke-width="2"/></g>
     </g>`;
+  // Safari's · Cabaret: fachada verde, letrero rojo, palmeras de neón, cadenero
+  const palm = (x) => `<g transform="translate(${x} -78)" class="blink"><path d="M0 26V-8" stroke="#ffe7a8" stroke-width="4" stroke-dasharray="3 3"/><path d="M0 -8c-8-8-18-6-22 0M0 -8c8-8 18-6 22 0M0 -8c-4-10-12-14-18-12M0 -8c4-10 12-14 18-12M0 -8c0-10 0-14 0-16" fill="none" stroke="#e8f4ff" stroke-width="3.5" stroke-linecap="round"/></g>`;
+  const car = (x, flip, c) => `<g transform="translate(${x} 48) scale(${flip} 1)"><path d="M-34 0h68v-12l-10-4-10-12h-30l-10 12-8 4z" fill="${c}" stroke="${INK}" stroke-width="2.5" stroke-linejoin="round"/><circle cx="-20" cy="2" r="7" fill="#222"/><circle cx="20" cy="2" r="7" fill="#222"/><path d="M-12 -26h18l6 10h-30z" fill="#a9d4ff" opacity=".6"/></g>`;
   const safari = `${entrancePath('safari', ents.safari)}<g transform="translate(${at('safari')})">
-      <ellipse rx="110" ry="74" fill="#c8b46a" stroke="${INK}" stroke-width="3"/>
-      <ellipse rx="110" ry="74" fill="none" stroke="#7a5233" stroke-width="6" stroke-dasharray="3 10"/>
-      <g transform="translate(-30 10)"><rect x="-26" y="-14" width="52" height="22" rx="5" fill="#d9a441" stroke="${INK}" stroke-width="2.5"/><rect x="-14" y="-26" width="26" height="14" rx="3" fill="#a9d4ff" stroke="${INK}" stroke-width="2.5"/><circle cx="-14" cy="10" r="7" fill="#333" stroke="${INK}" stroke-width="2"/><circle cx="14" cy="10" r="7" fill="#333" stroke="${INK}" stroke-width="2"/></g>
-      <g transform="translate(45 -15)"><path d="M0 26V-10l-12-12M0 -10l14-8" fill="none" stroke="#6b4a2b" stroke-width="5" stroke-linecap="round"/><ellipse cx="0" cy="-22" rx="30" ry="9" fill="#7c9a3a" stroke="${INK}" stroke-width="2.5"/></g>
-      <g transform="translate(0 -88)"><rect x="-52" y="-16" width="104" height="28" rx="4" fill="#5a3a1c" stroke="${INK}" stroke-width="3"/><text y="5" text-anchor="middle" class="board-sign">SAFARI</text></g>
+      <rect x="-150" y="20" width="300" height="46" fill="#3b3a40"/>
+      <rect x="-120" y="14" width="240" height="10" fill="#c3a6d6"/>
+      <ellipse cx="-60" cy="22" rx="26" ry="8" fill="#d36bff" opacity=".7" class="blink"/><ellipse cx="60" cy="22" rx="26" ry="8" fill="#d36bff" opacity=".7" class="blink"/>
+      <rect x="-118" y="-112" width="236" height="128" fill="#1f8f52" stroke="${INK}" stroke-width="4"/>
+      <path d="M-118 -40h236" stroke="#16683b" stroke-width="6"/>
+      <rect x="-104" y="-104" width="208" height="60" rx="4" fill="#20a35c" stroke="#0e5a31" stroke-width="3"/>
+      ${palm(-86)}${palm(86)}
+      <text y="-90" text-anchor="middle" class="cab-small">CABARET</text>
+      <text y="-66" text-anchor="middle" class="cab-big">safari's</text>
+      <text y="-50" text-anchor="middle" class="cab-red">100% 2000</text>
+      <rect x="-62" y="-44" width="124" height="14" fill="#111" stroke="#fff" stroke-width="1.5"/><text y="-34" text-anchor="middle" class="cab-plaque">La Catedral del Espectáculo</text>
+      <rect x="-18" y="-24" width="36" height="40" fill="#b9b2a6" stroke="${INK}" stroke-width="3"/><path d="M0 -24v40" stroke="${INK}" stroke-width="2"/>
+      <rect x="-100" y="-24" width="30" height="40" fill="#b9b2a6" stroke="${INK}" stroke-width="3"/>
+      ${['TEQUILA', 'CERVEZA', 'RON'].map((t, i) => `<g transform="translate(${34 + i * 28} -16)"><rect x="-12" y="-7" width="24" height="14" fill="#5a3a1c" stroke="#d9b98a" stroke-width="1.2"/><text y="3" text-anchor="middle" class="cab-tiny">${t}</text></g>`).join('')}
+      <g transform="translate(26 16)"><rect x="-6" y="-30" width="12" height="16" rx="3" fill="#c0262d" stroke="${INK}" stroke-width="1.5"/><rect x="-5" y="-14" width="10" height="16" fill="#1b2440"/><circle cy="-35" r="5" fill="#6b4a2b"/></g>
+      <g transform="translate(-136 -8)"><path d="M0 60V-110q0-8 10-8h22" fill="none" stroke="#8a8f96" stroke-width="5"/><rect x="28" y="-122" width="16" height="8" rx="3" fill="#ffe7a8"/><path d="M36 -114l-30 128h60z" fill="#fff6c9" opacity=".18"/></g>
+      ${car(-118, 1, '#8a7b62')}
+      <path d="M-24 58l14 0 4-6h4l2 6" fill="#c0262d" stroke="${INK}" stroke-width="1.5"/>
     </g>`;
   const dock = `<g transform="translate(640 980)">
       <rect x="-180" y="-30" width="360" height="26" fill="#8a6a46" stroke="${INK}" stroke-width="3"/>
@@ -238,6 +260,7 @@ export class GameBoard {
     this.svg.innerHTML = `<defs>
       <radialGradient id="sun" cx="0.12" cy="0.05" r="0.7"><stop offset="0" stop-color="#fff8d8" stop-opacity=".95"/><stop offset=".25" stop-color="#bfe3ff" stop-opacity=".35"/><stop offset="1" stop-color="#0b2a4a" stop-opacity="0"/></radialGradient>
       <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1b6a8f"/><stop offset="1" stop-color="#0b2f4f"/></linearGradient>
+      <pattern id="brick" width="24" height="12" patternUnits="userSpaceOnUse"><rect width="24" height="12" fill="#f1efe9"/><path d="M0 11.5h24M0 5.5h24M6 0v5.5M18 6v6" stroke="#cfcac0" stroke-width="1.2"/></pattern>
       <linearGradient id="beam" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#ff4fd8" stop-opacity=".9"/><stop offset="1" stop-color="#6ff0ff" stop-opacity="0"/></linearGradient>
     </defs>`;
     this.board = board;

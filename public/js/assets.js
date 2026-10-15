@@ -2,10 +2,10 @@
 // personajes "gomita" con sombreros, e íconos de casillas.
 // Sin <defs>/ids para que se puedan repetir sin colisiones.
 
-import { CHAR_SRC, PEMOL_LOGO } from './images.js';
+import { CHAR_SRC, PEMOL_LOGO, PEREZ_LOGO, PIAGET_LOGO } from './images.js';
 
 const INK = '#1b2440';
-export { CHAR_SRC, PEMOL_LOGO };
+export { CHAR_SRC, PEMOL_LOGO, PEREZ_LOGO, PIAGET_LOGO };
 
 // Perrita: moneda dorada con un perrito esponjoso de perfil y cola enroscada.
 export const DOG_PATH = 'M17 45c0-5 2-8 4-10l-1-7c-2-1-4-3-4-6 0-2 1-4 3-5l2-6 4 5 3-6 3 7c3 1 5 4 5 7 3 0 7 1 11 1 3 0 5-2 6-5 2-3 5-4 7-2 2 2 1 6-2 8-1 3-1 6 0 9l-1 9h-4l-1-6c-3 1-7 1-11 1l-1 6h-4l-1-7c-2 0-3 0-5-1l-1 7h-4z';

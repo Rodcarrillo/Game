@@ -17,7 +17,7 @@ const imagesPlugin = {
       const uri = (f, mime) => `data:${mime};base64,${fs.readFileSync(path.join(ROOT, 'public', f)).toString('base64')}`;
       const chars = Object.fromEntries(Array.from({ length: 10 }, (_, i) => [`c${i + 1}`, uri(`img/chars/c${i + 1}.webp`, 'image/webp')]));
       return {
-        contents: `export const CHAR_SRC = ${JSON.stringify(chars)};\nexport const PEMOL_LOGO = ${JSON.stringify(uri('img/pemol-logo.png', 'image/png'))};`,
+        contents: `export const CHAR_SRC = ${JSON.stringify(chars)};\nexport const PEMOL_LOGO = ${JSON.stringify(uri('img/pemol-logo.png', 'image/png'))};\nexport const PEREZ_LOGO = ${JSON.stringify(uri('img/la-perez-logo.png', 'image/png'))};\nexport const PIAGET_LOGO = ${JSON.stringify(uri('img/piaget-logo.png', 'image/png'))};`,
         loader: 'js',
       };
     });

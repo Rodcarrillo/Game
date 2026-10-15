@@ -652,3 +652,9 @@ h3.lose { color: var(--red); }
 .lab-panel h2 { font-size: 26px; }
 .lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; }
 .lab-grid .btn { justify-content: flex-start; text-align: left; }
+
+.cab-small { font-family: var(--display); font-size: 13px; fill: #1b2440; letter-spacing: .1em; }
+.cab-big { font-family: var(--display); font-size: 30px; fill: #e8332b; stroke: #fff6c9; stroke-width: 1.5px; paint-order: stroke; filter: drop-shadow(0 0 4px #ff6b5a); }
+.cab-red { font-family: var(--display); font-size: 13px; fill: #e8332b; stroke: #fff; stroke-width: .8px; paint-order: stroke; }
+.cab-plaque { font-family: Georgia, serif; font-size: 9px; fill: #fff; font-weight: 700; }
+.cab-tiny { font-family: var(--body); font-size: 5px; font-weight: 700; fill: #f1e2c0; }
